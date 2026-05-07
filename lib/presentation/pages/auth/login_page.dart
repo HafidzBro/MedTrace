@@ -52,7 +52,12 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
     if (mounted) {
       if (success) {
-        context.go(AppRoutes.patientDashboard);
+        final user = ref.read(authProvider).user;
+        if (user?.isDoctor ?? false) {
+          context.go(AppRoutes.doctorDashboard);
+        } else {
+          context.go(AppRoutes.patientDashboard);
+        }
       } else {
         final error = ref.read(authProvider).error;
         _showSnackBar(error ?? 'Login failed', isError: true);

@@ -20,12 +20,14 @@ class SupabaseService {
     required String fullName,
   }) async {
     try {
+      final normalizedDoctorCode = doctorCode.toUpperCase();
+
       // Step 1: Validate doctor code
       final response = await client
           .from('doctor_codes')
           .select()
-          .eq('code', doctorCode)
-          .single();
+          .eq('code', normalizedDoctorCode)
+          .maybeSingle();
 
       if (response == null) {
         throw InvalidDoctorCodeException(
@@ -57,7 +59,7 @@ class SupabaseService {
           'p_user_id': userId,
           'p_email': email,
           'p_full_name': fullName,
-          'p_doctor_code': code.code,
+          'p_doctor_code': code.code.toUpperCase(),
         },
       ).single();
 
@@ -183,8 +185,17 @@ class SupabaseService {
 
   Future<DoctorCodeModel> validateDoctorCode(String code) async {
     try {
-      final response =
-          await client.from('doctor_codes').select().eq('code', code).single();
+      final response = await client
+          .from('doctor_codes')
+          .select()
+          .eq('code', code.toUpperCase())
+          .maybeSingle();
+
+      if (response == null) {
+        throw InvalidDoctorCodeException(
+          message: 'Invalid or expired doctor code',
+        );
+      }
 
       return DoctorCodeModel.fromJson(response);
     } catch (e) {

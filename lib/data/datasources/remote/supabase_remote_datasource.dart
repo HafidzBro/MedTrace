@@ -25,12 +25,14 @@ class SupabaseRemoteDataSource {
     required String fullName,
   }) async {
     try {
+      final normalizedDoctorCode = doctorCode.toUpperCase();
+
       // Validate doctor code
       final codeResponse = await client
           .from('doctor_codes')
           .select()
-          .eq('code', doctorCode.toUpperCase())
-          .single();
+          .eq('code', normalizedDoctorCode)
+          .maybeSingle();
 
       if (codeResponse == null) {
         throw InvalidDoctorCodeException(message: 'Invalid doctor code');
@@ -61,7 +63,7 @@ class SupabaseRemoteDataSource {
           'p_user_id': userId,
           'p_email': email,
           'p_full_name': fullName,
-          'p_doctor_code': code.code,
+          'p_doctor_code': code.code.toUpperCase(),
         },
       ).single();
 
@@ -240,7 +242,13 @@ class SupabaseRemoteDataSource {
           .from('doctor_codes')
           .select()
           .eq('code', code.toUpperCase())
-          .single();
+          .maybeSingle();
+
+      if (response == null) {
+        throw InvalidDoctorCodeException(
+          message: 'Invalid or expired doctor code',
+        );
+      }
 
       return DoctorCodeModel.fromJson(response);
     } catch (e) {
