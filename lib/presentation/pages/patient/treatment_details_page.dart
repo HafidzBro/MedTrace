@@ -192,6 +192,44 @@ class TreatmentDetailsPage extends ConsumerWidget {
                 ),
               ],
             ),
+            const SizedBox(height: 24),
+
+            // Adherence Trend (7 days)
+            if (medicationLogsState.weeklyTrend.isNotEmpty)
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('7-Day Trend', style: AppTypography.headline4),
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        height: 60,
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: medicationLogsState.weeklyTrend
+                              .map((v) => Expanded(
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 2),
+                                      child: _buildTrendBar(v),
+                                    ),
+                                  ))
+                              .toList(),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('7 days ago', style: AppTypography.caption),
+                          Text('Today', style: AppTypography.caption),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
           ],
         ),
       ),
@@ -237,6 +275,31 @@ class TreatmentDetailsPage extends ConsumerWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildTrendBar(double value) {
+    if (value < 0) {
+      return Container(
+        height: 4,
+        decoration: BoxDecoration(
+          color: AppColors.lightGrey,
+          borderRadius: BorderRadius.circular(2),
+        ),
+      );
+    }
+    final height = (value / 100) * 56 + 4;
+    final color = value >= 80
+        ? AppColors.successGreen
+        : value >= 60
+            ? AppColors.warningYellow
+            : AppColors.errorRed;
+    return Container(
+      height: height,
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(4),
       ),
     );
   }

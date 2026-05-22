@@ -8,6 +8,8 @@ import 'package:medtrace/core/config/app_config.dart';
 import 'package:medtrace/presentation/providers/app_providers.dart';
 import 'package:medtrace/presentation/router/app_router.dart';
 import 'package:medtrace/services/notification_service.dart';
+import 'package:medtrace/services/connectivity_service.dart';
+import 'package:medtrace/services/cache_service.dart';
 import 'package:logger/logger.dart';
 
 final logger = Logger();
@@ -26,6 +28,8 @@ void main() async {
 
     await NotificationService.instance.initialize();
     logger.i('Notification service initialized successfully');
+
+    ConnectivityService.instance.initialize();
 
     NotificationService.onNotificationTap = _handleNotificationTap;
   } catch (e) {

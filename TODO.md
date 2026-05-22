@@ -10,18 +10,18 @@
 | Data Layer (Models, Repos, DataSource) | Complete |
 | Auth System | Complete |
 | Patient UI (6 pages) | Complete |
-| Doctor UI (3 pages) | Complete |
+| Doctor UI (3 pages + detail) | Complete |
 | State Management (all providers) | Complete |
 | OpenAI Chatbot | Complete |
 | Notifications | Complete |
-| Realtime (medication_logs + alerts) | Complete |
+| Realtime (medication_logs + alerts + treatments) | Complete |
 | Reminders CRUD | Complete |
-| Adherence Calculation | Complete |
+| Adherence Calculation + Auto-alerts | Complete |
 | Offline Support | Not started |
 | Testing | Not started |
 | Store Deployment | Not started |
 
-Overall: approximately 80% complete toward MVP.
+Overall: approximately 85% complete toward MVP.
 
 ---
 

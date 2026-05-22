@@ -6,6 +6,7 @@ import 'package:medtrace/data/models/models.dart';
 import 'package:medtrace/data/repositories/repositories.dart';
 import 'package:medtrace/domain/entities/entities.dart';
 import 'package:medtrace/presentation/providers/app_providers.dart';
+import 'package:medtrace/services/connectivity_service.dart';
 import 'package:medtrace/services/notification_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide Provider;
 
@@ -231,12 +232,16 @@ class MedicationLogsState {
   final List<MedicationLogModel> logs;
   final String? error;
   final double adherencePercentage;
+  final List<double> weeklyTrend;
+  final List<double> monthlyTrend;
 
   MedicationLogsState({
     this.isLoading = false,
     this.logs = const [],
     this.error,
     this.adherencePercentage = 0.0,
+    this.weeklyTrend = const [],
+    this.monthlyTrend = const [],
   });
 
   MedicationLogsState copyWith({
@@ -244,12 +249,16 @@ class MedicationLogsState {
     List<MedicationLogModel>? logs,
     String? error,
     double? adherencePercentage,
+    List<double>? weeklyTrend,
+    List<double>? monthlyTrend,
   }) {
     return MedicationLogsState(
       isLoading: isLoading ?? this.isLoading,
       logs: logs ?? this.logs,
       error: error ?? this.error,
       adherencePercentage: adherencePercentage ?? this.adherencePercentage,
+      weeklyTrend: weeklyTrend ?? this.weeklyTrend,
+      monthlyTrend: monthlyTrend ?? this.monthlyTrend,
     );
   }
 }
@@ -270,7 +279,13 @@ class MedicationLogsNotifier extends StateNotifier<MedicationLogsState> {
     required this.patientId,
   }) : super(MedicationLogsState()) {
     _subscribeRealtime();
+    _reconnectSubscription = ConnectivityService.instance.onReconnect.listen((_) {
+      _subscribeRealtime();
+      loadMedicationLogs();
+    });
   }
+
+  StreamSubscription<void>? _reconnectSubscription;
 
   void _subscribeRealtime() {
     _logsSubscription?.cancel();
@@ -300,21 +315,44 @@ class MedicationLogsNotifier extends StateNotifier<MedicationLogsState> {
       state = state.copyWith(isLoading: true);
       final logs = await repository.getPatientMedicationLogs(patientId);
 
-      // Calculate adherence percentage
       double adherence = 0.0;
       if (logs.isNotEmpty) {
         final takenCount = logs.where((log) => log.isTaken).length;
         adherence = (takenCount / logs.length) * 100;
       }
 
+      final weeklyTrend = _calculateTrend(logs, 7);
+      final monthlyTrend = _calculateTrend(logs, 30);
+
       state = state.copyWith(
         logs: logs,
         adherencePercentage: adherence,
+        weeklyTrend: weeklyTrend,
+        monthlyTrend: monthlyTrend,
         isLoading: false,
       );
     } catch (e) {
       state = state.copyWith(error: e.toString(), isLoading: false);
     }
+  }
+
+  List<double> _calculateTrend(List<MedicationLogModel> logs, int days) {
+    final now = DateTime.now();
+    final trend = <double>[];
+    for (int i = days - 1; i >= 0; i--) {
+      final date = now.subtract(Duration(days: i));
+      final dayLogs = logs.where((l) =>
+          l.scheduledDate.year == date.year &&
+          l.scheduledDate.month == date.month &&
+          l.scheduledDate.day == date.day);
+      if (dayLogs.isEmpty) {
+        trend.add(-1); // no data
+      } else {
+        final taken = dayLogs.where((l) => l.isTaken).length;
+        trend.add((taken / dayLogs.length) * 100);
+      }
+    }
+    return trend;
   }
 
   Future<void> markMedicationTaken(String logId) async {
@@ -398,6 +436,7 @@ class MedicationLogsNotifier extends StateNotifier<MedicationLogsState> {
   @override
   void dispose() {
     _logsSubscription?.cancel();
+    _reconnectSubscription?.cancel();
     super.dispose();
   }
 }
@@ -926,7 +965,13 @@ class DoctorAlertsNotifier extends StateNotifier<DoctorAlertsState> {
     required this.doctorId,
   }) : super(const DoctorAlertsState()) {
     _subscribeRealtime();
+    _reconnectSubscription = ConnectivityService.instance.onReconnect.listen((_) {
+      _subscribeRealtime();
+      loadAlerts();
+    });
   }
+
+  StreamSubscription<void>? _reconnectSubscription;
 
   void _subscribeRealtime() {
     _alertsSubscription?.cancel();
@@ -966,6 +1011,7 @@ class DoctorAlertsNotifier extends StateNotifier<DoctorAlertsState> {
   @override
   void dispose() {
     _alertsSubscription?.cancel();
+    _reconnectSubscription?.cancel();
     super.dispose();
   }
 }
