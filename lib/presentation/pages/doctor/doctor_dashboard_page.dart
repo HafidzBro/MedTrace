@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:medtrace/presentation/providers/app_providers.dart';
+import 'package:medtrace/presentation/providers/feature_providers.dart';
 import 'package:medtrace/presentation/router/app_router.dart';
 import 'package:medtrace/shared/theme/app_theme.dart';
 
@@ -15,6 +16,16 @@ class DoctorDashboardPage extends ConsumerWidget {
     final authState = ref.watch(authProvider);
     final user = authState.user;
     final doctorName = user?.fullName ?? user?.email ?? 'Doctor';
+    final userId = user?.id ?? '';
+
+    final patientsState = ref.watch(doctorPatientsProvider(userId));
+    final alertsState = ref.watch(doctorAlertsProvider(userId));
+
+    final patientCount = patientsState.patients.length;
+    final openAlerts = alertsState.alerts.where((a) => !a.actionTaken).length;
+    final avgAdherence = patientCount > 0
+        ? patientsState.patients.fold<double>(0, (sum, p) => sum + p.adherencePercentage) / patientCount
+        : 0.0;
 
     return Scaffold(
       appBar: AppBar(
@@ -74,7 +85,7 @@ class DoctorDashboardPage extends ConsumerWidget {
                     child: _buildStatCard(
                       icon: Icons.people,
                       label: 'Patients',
-                      value: '12',
+                      value: '$patientCount',
                       color: AppColors.doctor,
                     ),
                   ),
@@ -83,7 +94,7 @@ class DoctorDashboardPage extends ConsumerWidget {
                     child: _buildStatCard(
                       icon: Icons.warning_amber,
                       label: 'Alerts',
-                      value: '3',
+                      value: '$openAlerts',
                       color: AppColors.error,
                     ),
                   ),
@@ -92,7 +103,7 @@ class DoctorDashboardPage extends ConsumerWidget {
                     child: _buildStatCard(
                       icon: Icons.trending_up,
                       label: 'Avg. Adherence',
-                      value: '82%',
+                      value: '${avgAdherence.toStringAsFixed(0)}%',
                       color: AppColors.success,
                     ),
                   ),

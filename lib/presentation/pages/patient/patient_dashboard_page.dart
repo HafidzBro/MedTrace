@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:medtrace/presentation/providers/app_providers.dart';
+import 'package:medtrace/presentation/providers/feature_providers.dart';
 import 'package:medtrace/presentation/router/app_router.dart';
 import 'package:medtrace/shared/theme/app_theme.dart';
 
@@ -15,6 +16,12 @@ class PatientDashboardPage extends ConsumerWidget {
     final authState = ref.watch(authProvider);
     final user = authState.user;
     final userName = user?.fullName ?? user?.email ?? 'Patient';
+    final userId = user?.id ?? '';
+
+    final logsState = ref.watch(patientMedicationLogsProvider(userId));
+    final adherence = logsState.adherencePercentage;
+    final todayTaken = logsState.logs.where((l) => l.isTaken && _isToday(l.scheduledDate)).length;
+    final todayTotal = logsState.logs.where((l) => _isToday(l.scheduledDate)).length;
 
     return Scaffold(
       appBar: AppBar(
@@ -94,16 +101,16 @@ class PatientDashboardPage extends ConsumerWidget {
                         child: _buildStatCard(
                           icon: Icons.done_all,
                           label: 'Adherence',
-                          value: '85%',
-                          color: AppColors.success,
+                          value: '${adherence.toStringAsFixed(0)}%',
+                          color: adherence >= 80 ? AppColors.success : adherence >= 60 ? AppColors.warning : AppColors.error,
                         ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: _buildStatCard(
                           icon: Icons.medication,
-                          label: 'Medications',
-                          value: '4/4',
+                          label: 'Today',
+                          value: '$todayTaken/$todayTotal',
                           color: AppColors.patient,
                         ),
                       ),
