@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
@@ -12,6 +14,9 @@ class NotificationService {
 
   bool _initialized = false;
 
+  /// Callback for handling notification taps. Set by the app at startup.
+  static void Function(String? payload)? onNotificationTap;
+
   Future<void> initialize() async {
     if (_initialized) return;
 
@@ -20,9 +25,12 @@ class NotificationService {
     const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
     const iosInit = DarwinInitializationSettings();
 
-    const settings = InitializationSettings(android: androidInit, iOS: iosInit);
+    final settings = InitializationSettings(android: androidInit, iOS: iosInit);
 
-    await _plugin.initialize(settings);
+    await _plugin.initialize(
+      settings,
+      onDidReceiveNotificationResponse: _onNotificationResponse,
+    );
 
     await _plugin
         .resolvePlatformSpecificImplementation<
@@ -49,19 +57,25 @@ class NotificationService {
     _initialized = true;
   }
 
+  static void _onNotificationResponse(NotificationResponse response) {
+    final payload = response.payload;
+    if (onNotificationTap != null && payload != null) {
+      onNotificationTap!(payload);
+    }
+  }
+
   Future<void> scheduleReminderNotification({
     required int id,
     required String title,
     required String body,
     required DateTime when,
+    String? payload,
   }) async {
-    if (!_initialized) {
-      await initialize();
-    }
+    if (!_initialized) await initialize();
+    if (!when.isAfter(DateTime.now())) return;
 
-    if (!when.isAfter(DateTime.now())) {
-      return;
-    }
+    final notificationPayload = payload ??
+        jsonEncode({'type': 'reminder', 'route': '/patient/reminders'});
 
     final notificationDetails = NotificationDetails(
       android: AndroidNotificationDetails(
@@ -84,6 +98,7 @@ class NotificationService {
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
       uiLocalNotificationDateInterpretation:
           UILocalNotificationDateInterpretation.absoluteTime,
+      payload: notificationPayload,
     );
   }
 

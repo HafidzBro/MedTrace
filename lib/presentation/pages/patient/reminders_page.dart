@@ -174,19 +174,28 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
     required bool isUpcoming,
   }) {
     final icon = _getReminderIcon(reminder.reminderType);
-    final color = isUpcoming ? AppColors.patient : AppColors.textTertiary;
+    final isOverdue = !isUpcoming && !reminder.isSent;
+    final color = isOverdue
+        ? AppColors.error
+        : isUpcoming
+            ? AppColors.patient
+            : AppColors.textTertiary;
 
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isUpcoming
-            ? AppColors.patient.withOpacity(0.05)
-            : AppColors.borderColor.withOpacity(0.5),
+        color: isOverdue
+            ? AppColors.error.withOpacity(0.05)
+            : isUpcoming
+                ? AppColors.patient.withOpacity(0.05)
+                : AppColors.borderColor.withOpacity(0.5),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: isUpcoming
-              ? AppColors.patient.withOpacity(0.2)
-              : AppColors.borderColor,
+          color: isOverdue
+              ? AppColors.error.withOpacity(0.3)
+              : isUpcoming
+                  ? AppColors.patient.withOpacity(0.2)
+                  : AppColors.borderColor,
         ),
       ),
       child: Row(
@@ -208,14 +217,41 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  reminder.title,
-                  style: AppTypography.labelLarge.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.text,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        reminder.title,
+                        style: AppTypography.labelLarge.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.text,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (isOverdue)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.error.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          'OVERDUE',
+                          style: AppTypography.caption.copyWith(
+                            color: AppColors.error,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 10,
+                          ),
+                        ),
+                      ),
+                    if (reminder.isSent && !isUpcoming)
+                      Icon(Icons.check_circle, color: AppColors.success, size: 18),
+                  ],
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -231,6 +267,11 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
           // Actions
           PopupMenuButton(
             itemBuilder: (context) => [
+              if (isOverdue)
+                PopupMenuItem(
+                  child: const Text('Mark Completed'),
+                  onTap: () => _markCompleted(context, reminder, userId, ref),
+                ),
               PopupMenuItem(
                 child: const Text('Edit'),
                 onTap: () =>
@@ -247,6 +288,24 @@ class _RemindersPageState extends ConsumerState<RemindersPage> {
           ),
         ],
       ),
+    );
+  }
+
+  void _markCompleted(
+    BuildContext context,
+    Reminder reminder,
+    String userId,
+    WidgetRef ref,
+  ) {
+    ref.read(patientRemindersProvider(userId).notifier).updateReminder(
+          reminderId: reminder.id,
+          title: reminder.title,
+          description: reminder.description,
+          scheduledDate: reminder.scheduledDate,
+          scheduledTime: reminder.scheduledTime,
+        );
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Reminder marked as completed')),
     );
   }
 

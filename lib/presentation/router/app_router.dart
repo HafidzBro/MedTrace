@@ -11,6 +11,7 @@ import 'package:medtrace/presentation/pages/patient/reminders_page.dart';
 import 'package:medtrace/presentation/pages/doctor/doctor_dashboard_page.dart';
 import 'package:medtrace/presentation/pages/doctor/patient_management_page.dart';
 import 'package:medtrace/presentation/pages/doctor/alerts_page.dart';
+import 'package:medtrace/presentation/pages/doctor/patient_detail_page.dart';
 import 'package:medtrace/presentation/providers/app_providers.dart';
 
 // Router Routes
@@ -31,6 +32,7 @@ class AppRoutes {
   // Doctor
   static const String doctorDashboard = '/doctor-dashboard';
   static const String patientManagement = '/doctor/patients';
+  static const String patientDetail = '/doctor/patients/detail';
   static const String alerts = '/doctor/alerts';
 }
 
@@ -125,6 +127,17 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.patientManagement,
         name: 'patient_management',
         builder: (context, state) => const PatientManagementPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.patientDetail,
+        name: 'patient_detail',
+        builder: (context, state) {
+          final extra = state.extra as Map<String, String>? ?? {};
+          return PatientDetailPage(
+            patientId: extra['patientId'] ?? '',
+            patientName: extra['patientName'] ?? 'Patient',
+          );
+        },
       ),
       GoRoute(
         path: AppRoutes.alerts,

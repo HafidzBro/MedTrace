@@ -201,8 +201,11 @@ class _ChatbotPageState extends ConsumerState<ChatbotPage> {
                   : ListView.builder(
                       controller: _scrollController,
                       padding: const EdgeInsets.all(16),
-                      itemCount: messagesState.messages.length,
+                      itemCount: messagesState.messages.length + (_isSending ? 1 : 0),
                       itemBuilder: (context, index) {
+                        if (index == messagesState.messages.length && _isSending) {
+                          return _buildTypingIndicator();
+                        }
                         final message = messagesState.messages[index];
                         return _buildMessageBubble(message);
                       },
@@ -277,6 +280,62 @@ class _ChatbotPageState extends ConsumerState<ChatbotPage> {
     );
   }
 
+  Widget _buildTypingIndicator() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.start,
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppColors.patient.withOpacity(0.2),
+            ),
+            child: Icon(Icons.psychology, size: 16, color: AppColors.patient),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: AppColors.borderColor,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildDot(0),
+                const SizedBox(width: 4),
+                _buildDot(1),
+                const SizedBox(width: 4),
+                _buildDot(2),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDot(int index) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.3, end: 1.0),
+      duration: Duration(milliseconds: 600 + (index * 200)),
+      builder: (context, value, child) => Opacity(
+        opacity: value,
+        child: Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: AppColors.textTertiary,
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildMessageInput(
     BuildContext context,
     String conversationId,
@@ -344,6 +403,7 @@ class _ChatbotPageState extends ConsumerState<ChatbotPage> {
 
     setState(() => _isSending = true);
     _messageController.clear();
+    _scrollToBottom();
 
     try {
       await messagesNotifier.addMessage(message: message, role: 'user');
@@ -378,13 +438,17 @@ class _ChatbotPageState extends ConsumerState<ChatbotPage> {
       }
     }
 
-    Future.delayed(const Duration(milliseconds: 100), () {
+    Future.delayed(const Duration(milliseconds: 100), _scrollToBottom);
+  }
+
+  void _scrollToBottom() {
+    if (_scrollController.hasClients) {
       _scrollController.animateTo(
         _scrollController.position.maxScrollExtent,
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeOut,
       );
-    });
+    }
   }
 
   Future<void> _startNewChat(String userId, WidgetRef ref) async {

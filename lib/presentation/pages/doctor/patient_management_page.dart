@@ -1,9 +1,11 @@
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:medtrace/core/extensions/extensions.dart';
 import 'package:medtrace/presentation/providers/app_providers.dart';
 import 'package:medtrace/presentation/providers/feature_providers.dart';
+import 'package:medtrace/presentation/router/app_router.dart';
 import 'package:medtrace/shared/theme/app_theme.dart';
 
 /// Doctor's patient management page
@@ -235,12 +237,10 @@ class _PatientManagementPageState extends ConsumerState<PatientManagementPage> {
 
     return GestureDetector(
       onTap: () {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Patient $patientName selected'),
-            duration: const Duration(seconds: 2),
-          ),
-        );
+        context.go(AppRoutes.patientDetail, extra: {
+          'patientId': patient.id,
+          'patientName': patientName,
+        });
       },
       child: Container(
         padding: const EdgeInsets.all(16),
