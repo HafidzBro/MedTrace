@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:medtrace/data/models/models.dart';
 import 'package:medtrace/presentation/providers/feature_providers.dart';
+import 'package:medtrace/services/pdf_report_service.dart';
 import 'package:medtrace/shared/theme/app_theme.dart';
 
 class PatientDetailPage extends ConsumerWidget {
@@ -24,6 +25,15 @@ class PatientDetailPage extends ConsumerWidget {
         title: Text(patientName),
         centerTitle: true,
         elevation: 0,
+        actions: [
+          PopupMenuButton<String>(
+            onSelected: (value) => _generateReport(value, treatmentState, logsState, ref),
+            itemBuilder: (context) => [
+              const PopupMenuItem(value: 'summary', child: Text('Treatment Summary PDF')),
+              const PopupMenuItem(value: 'adherence', child: Text('Adherence Report PDF')),
+            ],
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -39,6 +49,32 @@ class PatientDetailPage extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  void _generateReport(String type, TreatmentState treatmentState, MedicationLogsState logsState, WidgetRef ref) {
+    final patient = UserModel(
+      id: patientId,
+      email: '',
+      role: 'patient',
+      fullName: patientName,
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+
+    if (type == 'summary' && treatmentState.treatment != null) {
+      PdfReportService.generateTreatmentSummary(
+        patient: patient,
+        treatment: treatmentState.treatment!,
+        medications: [],
+        adherence: logsState.adherencePercentage,
+      );
+    } else if (type == 'adherence') {
+      PdfReportService.generateAdherenceReport(
+        patient: patient,
+        logs: logsState.logs,
+        adherence: logsState.adherencePercentage,
+      );
+    }
   }
 
   Widget _buildAdherenceCard(MedicationLogsState state) {

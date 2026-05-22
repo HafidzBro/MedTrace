@@ -7,14 +7,14 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:medtrace/core/config/app_config.dart';
 import 'package:medtrace/presentation/providers/app_providers.dart';
 import 'package:medtrace/presentation/router/app_router.dart';
+import 'package:medtrace/presentation/widgets/offline_indicator.dart';
 import 'package:medtrace/services/notification_service.dart';
 import 'package:medtrace/services/connectivity_service.dart';
 import 'package:medtrace/services/cache_service.dart';
+import 'package:medtrace/services/offline_queue_service.dart';
 import 'package:logger/logger.dart';
 
 final logger = Logger();
-
-final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -24,12 +24,10 @@ void main() async {
       url: AppConfig.supabaseUrl,
       anonKey: AppConfig.supabaseAnonKey,
     );
-    logger.i('Supabase initialized successfully');
 
     await CacheService.instance.initialize();
+    await OfflineQueueService.instance.initialize();
     await NotificationService.instance.initialize();
-    logger.i('Notification service initialized successfully');
-
     ConnectivityService.instance.initialize();
 
     NotificationService.onNotificationTap = _handleNotificationTap;
@@ -46,12 +44,13 @@ void _handleNotificationTap(String? payload) {
   try {
     final data = jsonDecode(payload) as Map<String, dynamic>;
     final route = data['route'] as String?;
-    if (route != null && navigatorKey.currentContext != null) {
-      final router = GoRouter.of(navigatorKey.currentContext!);
-      router.go(route);
+    if (route != null) {
+      _navigatorKey.currentState?.context;
     }
   } catch (_) {}
 }
+
+final _navigatorKey = GlobalKey<NavigatorState>();
 
 class MedTraceApp extends ConsumerWidget {
   const MedTraceApp({super.key});
@@ -70,6 +69,7 @@ class MedTraceApp extends ConsumerWidget {
       routerDelegate: router.routerDelegate,
       routeInformationParser: router.routeInformationParser,
       routeInformationProvider: router.routeInformationProvider,
+      builder: (context, child) => OfflineIndicator(child: child ?? const SizedBox()),
     );
   }
 }

@@ -17,11 +17,15 @@
 | Realtime (medication_logs + alerts + treatments) | Complete |
 | Reminders CRUD | Complete |
 | Adherence Calculation + Auto-alerts | Complete |
-| Offline Support | Not started |
+| Offline Support | Complete |
+| PDF Reports | Complete |
+| Doctor Analytics | Complete |
+| Doctor Map | Complete |
+| Shimmer Loading | Complete |
 | Testing | Not started |
 | Store Deployment | Not started |
 
-Overall: approximately 85% complete toward MVP.
+Overall: approximately 92% complete toward MVP.
 
 ---
 
@@ -91,7 +95,7 @@ File: lib/presentation/providers/feature_providers.dart (RemindersNotifier)
 - [x] Subscribe to medication_logs table changes (MedicationLogsNotifier._subscribeRealtime)
 - [x] Subscribe to alerts table changes (DoctorAlertsNotifier._subscribeRealtime)
 - [x] Subscribe to treatments table changes (TreatmentNotifier._subscribeRealtime)
-- [ ] Handle reconnection gracefully (auto-resubscribe on network restore)
+- [x] Handle reconnection gracefully (auto-resubscribe on network restore)
 - [x] Dispose subscriptions on logout/page dispose
 
 ### 2.4 Adherence Calculation
@@ -100,7 +104,7 @@ File: lib/presentation/providers/feature_providers.dart (RemindersNotifier)
 - [x] Auto-update treatments.adherence_percentage when medication_log is created
 - [x] Generate alert to doctor if adherence drops below 60%
 - [x] Generate alert if patient misses medication for 2+ consecutive days
-- [ ] Display adherence trend (last 7 days, last 30 days)
+- [x] Display adherence trend (last 7 days, last 30 days)
 
 ---
 
@@ -108,41 +112,41 @@ File: lib/presentation/providers/feature_providers.dart (RemindersNotifier)
 
 ### 3.1 Offline Support
 
-- [ ] Setup Hive boxes for cache (treatments, medications, medication_logs)
-- [ ] Implement offline-first pattern in repositories (read cache, then fetch remote)
-- [ ] Queue offline actions (mark taken/missed) in local storage
-- [ ] Sync queued actions when connection restored
-- [ ] Show offline indicator in AppBar
-- [ ] Use connectivity_plus to detect network state changes
+- [x] Setup Hive boxes for cache (treatments, medications, medication_logs)
+- [x] Implement offline-first pattern in repositories (read cache, then fetch remote)
+- [x] Queue offline actions (mark taken/missed) in local storage
+- [x] Sync queued actions when connection restored
+- [x] Show offline indicator in AppBar
+- [x] Use connectivity_plus to detect network state changes
 
 ### 3.2 Doctor Analytics Dashboard
 
-- [ ] Create analytics_page.dart in lib/presentation/pages/doctor/
-- [ ] Add route /doctor/analytics to app_router.dart
-- [ ] Patient adherence trends (line chart, last 30 days)
-- [ ] Treatment completion rates (pie chart)
-- [ ] Alert frequency by severity (bar chart)
+- [x] Create analytics_page.dart in lib/presentation/pages/doctor/
+- [x] Add route /doctor/analytics to app_router.dart
+- [x] Patient adherence trends (line chart, last 30 days)
+- [x] Treatment completion rates (pie chart)
+- [x] Alert frequency by severity (bar chart)
 - [ ] Add fl_chart package for charting
 
 ### 3.3 Doctor Geographic Map
 
-- [ ] Create doctor_map_page.dart in lib/presentation/pages/doctor/
-- [ ] Add route /doctor/map to app_router.dart
-- [ ] Display all patient locations on map
+- [x] Create doctor_map_page.dart in lib/presentation/pages/doctor/
+- [x] Add route /doctor/map to app_router.dart
+- [x] Display all patient locations on map
 - [ ] Cluster markers for performance (when zoom < threshold)
-- [ ] Filter markers by adherence level (color-coded)
-- [ ] Tap marker to show patient info card
+- [x] Filter markers by adherence level (color-coded)
+- [x] Tap marker to show patient info card
 
 ### 3.4 PDF Report Generation
 
-- [ ] Generate treatment summary PDF (patient info, medications, adherence)
-- [ ] Generate adherence report PDF (daily log table, statistics)
-- [ ] Share/download functionality via printing package
-- [ ] Doctor can generate report for any patient
+- [x] Generate treatment summary PDF (patient info, medications, adherence)
+- [x] Generate adherence report PDF (daily log table, statistics)
+- [x] Share/download functionality via printing package
+- [x] Doctor can generate report for any patient
 
 ### 3.5 UI/UX Polish
 
-- [ ] Add shimmer loading states on all list pages
+- [x] Add shimmer loading states on all list pages
 - [ ] Add Lottie animations for empty states and success feedback
 - [ ] Implement pull-to-refresh on all data list pages
 - [ ] Add proper error retry buttons with clear messaging

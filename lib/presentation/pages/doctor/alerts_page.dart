@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:medtrace/domain/entities/entities.dart';
 import 'package:medtrace/presentation/providers/app_providers.dart';
 import 'package:medtrace/presentation/providers/feature_providers.dart';
+import 'package:medtrace/presentation/widgets/shimmer_loading.dart';
 import 'package:medtrace/shared/theme/app_theme.dart';
 
 /// Doctor alerts page
@@ -74,7 +75,7 @@ class _AlertsPageState extends ConsumerState<AlertsPage> {
           // Alerts list
           Expanded(
             child: alertsState.isLoading
-                ? const Center(child: CircularProgressIndicator())
+                ? const ShimmerLoading(type: ShimmerType.card)
                 : alerts.isEmpty
                     ? _buildEmptyState()
                     : _buildAlertsList(alerts, userId),

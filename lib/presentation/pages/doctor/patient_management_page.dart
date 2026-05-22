@@ -6,6 +6,7 @@ import 'package:medtrace/core/extensions/extensions.dart';
 import 'package:medtrace/presentation/providers/app_providers.dart';
 import 'package:medtrace/presentation/providers/feature_providers.dart';
 import 'package:medtrace/presentation/router/app_router.dart';
+import 'package:medtrace/presentation/widgets/shimmer_loading.dart';
 import 'package:medtrace/shared/theme/app_theme.dart';
 
 /// Doctor's patient management page
@@ -122,7 +123,7 @@ class _PatientManagementPageState extends ConsumerState<PatientManagementPage> {
           // Patient list
           Expanded(
             child: patientsState.isLoading
-                ? const Center(child: CircularProgressIndicator())
+                ? const ShimmerLoading(type: ShimmerType.list)
                 : patients.isEmpty
                     ? _buildEmptyState(context, userId)
                     : _buildPatientsList(context, patients, userId),
