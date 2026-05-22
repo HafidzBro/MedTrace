@@ -26,6 +26,7 @@ void main() async {
     );
     logger.i('Supabase initialized successfully');
 
+    await CacheService.instance.initialize();
     await NotificationService.instance.initialize();
     logger.i('Notification service initialized successfully');
 

@@ -181,13 +181,13 @@ class DoctorDashboardPage extends ConsumerWidget {
         'icon': Icons.bar_chart,
         'label': 'Analytics',
         'description': 'Treatment data',
-        'route': null, // TODO: Create analytics page
+        'route': AppRoutes.analytics,
       },
       {
         'icon': Icons.map,
         'label': 'Geographic Map',
         'description': 'TB distribution',
-        'route': null, // TODO: Create doctor map page
+        'route': AppRoutes.doctorMap,
       },
     ];
 

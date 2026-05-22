@@ -12,6 +12,8 @@ import 'package:medtrace/presentation/pages/doctor/doctor_dashboard_page.dart';
 import 'package:medtrace/presentation/pages/doctor/patient_management_page.dart';
 import 'package:medtrace/presentation/pages/doctor/alerts_page.dart';
 import 'package:medtrace/presentation/pages/doctor/patient_detail_page.dart';
+import 'package:medtrace/presentation/pages/doctor/analytics_page.dart';
+import 'package:medtrace/presentation/pages/doctor/doctor_map_page.dart';
 import 'package:medtrace/presentation/providers/app_providers.dart';
 
 // Router Routes
@@ -34,6 +36,8 @@ class AppRoutes {
   static const String patientManagement = '/doctor/patients';
   static const String patientDetail = '/doctor/patients/detail';
   static const String alerts = '/doctor/alerts';
+  static const String analytics = '/doctor/analytics';
+  static const String doctorMap = '/doctor/map';
 }
 
 // App Router Provider
@@ -143,6 +147,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.alerts,
         name: 'alerts',
         builder: (context, state) => const AlertsPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.analytics,
+        name: 'analytics',
+        builder: (context, state) => const AnalyticsPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.doctorMap,
+        name: 'doctor_map',
+        builder: (context, state) => const DoctorMapPage(),
       ),
     ],
   );
