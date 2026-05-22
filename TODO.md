@@ -37,7 +37,7 @@ File: lib/presentation/providers/feature_providers.dart
 - [x] Wire alerts_page.dart to DoctorAlertsNotifier (uses real provider)
 - [x] Implement generate doctor code via DoctorCodeRepository
 - [x] Implement mark alert as resolved via AlertRepository
-- [ ] Implement patient detail view from doctor perspective
+- [x] Implement patient detail view from doctor perspective
 
 ### 1.2 Build Verification
 
@@ -57,7 +57,7 @@ File: lib/presentation/pages/patient/chatbot_page.dart
 - [x] Send conversation history as context (last 20 messages)
 - [x] Save assistant response to database via ChatbotRepository
 - [x] Handle error states: network error, invalid key (fallback message if no API key)
-- [ ] Add typing indicator while waiting for response
+- [x] Add typing indicator while waiting for response
 - [x] Store OpenAI API key via environment variable (AppConfig.openaiApiKey)
 
 ---
@@ -72,7 +72,7 @@ Files: lib/services/notification_service.dart
 - [x] Request notification permissions (Android + iOS)
 - [x] Implement scheduleReminderNotification(id, title, body, when)
 - [x] Implement cancel(id) for removing scheduled notifications
-- [ ] Handle notification tap: navigate to relevant page via GoRouter
+- [x] Handle notification tap: navigate to relevant page via GoRouter
 - [x] Cancel notification when reminder is deleted
 - [ ] Background notification handling (onDidReceiveNotificationResponse)
 
@@ -83,23 +83,23 @@ File: lib/presentation/providers/feature_providers.dart (RemindersNotifier)
 - [x] Implement createReminder() -> insert to Supabase + schedule notification
 - [x] Implement updateReminder() -> update in Supabase + reschedule notification
 - [x] Implement deleteReminder() -> delete from Supabase + cancel notification
-- [ ] Mark reminder as completed after scheduled time passes
-- [ ] Show overdue reminders with visual indicator
+- [x] Mark reminder as completed after scheduled time passes
+- [x] Show overdue reminders with visual indicator
 
 ### 2.3 Supabase Realtime Subscriptions
 
 - [x] Subscribe to medication_logs table changes (MedicationLogsNotifier._subscribeRealtime)
 - [x] Subscribe to alerts table changes (DoctorAlertsNotifier._subscribeRealtime)
-- [ ] Subscribe to treatments table changes (patient: auto-refresh treatment details)
+- [x] Subscribe to treatments table changes (TreatmentNotifier._subscribeRealtime)
 - [ ] Handle reconnection gracefully (auto-resubscribe on network restore)
 - [x] Dispose subscriptions on logout/page dispose
 
 ### 2.4 Adherence Calculation
 
 - [x] Implement adherence calculation: (taken_count / total_logs) * 100
-- [ ] Auto-update treatments.adherence_percentage when medication_log is created
-- [ ] Generate alert to doctor if adherence drops below 60%
-- [ ] Generate alert if patient misses medication for 2+ consecutive days
+- [x] Auto-update treatments.adherence_percentage when medication_log is created
+- [x] Generate alert to doctor if adherence drops below 60%
+- [x] Generate alert if patient misses medication for 2+ consecutive days
 - [ ] Display adherence trend (last 7 days, last 30 days)
 
 ---

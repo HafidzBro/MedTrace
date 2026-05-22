@@ -105,9 +105,30 @@ class TreatmentState {
 class TreatmentNotifier extends StateNotifier<TreatmentState> {
   final TreatmentRepository repository;
   final String patientId;
+  final SupabaseClient client;
+  StreamSubscription<List<Map<String, dynamic>>>? _subscription;
 
-  TreatmentNotifier({required this.repository, required this.patientId})
-      : super(TreatmentState());
+  TreatmentNotifier({
+    required this.repository,
+    required this.patientId,
+    required this.client,
+  }) : super(TreatmentState()) {
+    _subscribeRealtime();
+  }
+
+  void _subscribeRealtime() {
+    _subscription?.cancel();
+    _subscription = client
+        .from('treatments')
+        .stream(primaryKey: ['id'])
+        .eq('patient_id', patientId)
+        .listen((rows) {
+          if (rows.isNotEmpty) {
+            final treatment = TreatmentModel.fromJson(rows.first);
+            state = state.copyWith(treatment: treatment, isLoading: false);
+          }
+        });
+  }
 
   Future<void> loadTreatment() async {
     try {
@@ -118,6 +139,12 @@ class TreatmentNotifier extends StateNotifier<TreatmentState> {
       state = state.copyWith(error: e.toString(), isLoading: false);
     }
   }
+
+  @override
+  void dispose() {
+    _subscription?.cancel();
+    super.dispose();
+  }
 }
 
 final patientTreatmentProvider =
@@ -126,9 +153,11 @@ final patientTreatmentProvider =
   patientId,
 ) {
   final repository = ref.watch(treatmentRepositoryProvider);
+  final client = ref.watch(supabaseClientProvider);
   final notifier = TreatmentNotifier(
     repository: repository,
     patientId: patientId,
+    client: client,
   );
   notifier.loadTreatment();
   return notifier;
@@ -227,12 +256,16 @@ class MedicationLogsState {
 
 class MedicationLogsNotifier extends StateNotifier<MedicationLogsState> {
   final MedicationLogRepository repository;
+  final TreatmentRepository treatmentRepository;
+  final AlertRepository alertRepository;
   final SupabaseClient client;
   final String patientId;
   StreamSubscription<List<Map<String, dynamic>>>? _logsSubscription;
 
   MedicationLogsNotifier({
     required this.repository,
+    required this.treatmentRepository,
+    required this.alertRepository,
     required this.client,
     required this.patientId,
   }) : super(MedicationLogsState()) {
@@ -288,6 +321,7 @@ class MedicationLogsNotifier extends StateNotifier<MedicationLogsState> {
     try {
       await repository.updateMedicationLog(logId: logId, status: 'taken');
       await loadMedicationLogs();
+      await _syncAdherence();
     } catch (e) {
       state = state.copyWith(error: e.toString());
     }
@@ -297,9 +331,68 @@ class MedicationLogsNotifier extends StateNotifier<MedicationLogsState> {
     try {
       await repository.updateMedicationLog(logId: logId, status: 'missed');
       await loadMedicationLogs();
+      await _syncAdherence();
+      await _checkAndGenerateAlerts();
     } catch (e) {
       state = state.copyWith(error: e.toString());
     }
+  }
+
+  Future<void> _syncAdherence() async {
+    try {
+      final treatment = await treatmentRepository.getPatientTreatment(patientId);
+      if (treatment != null) {
+        await treatmentRepository.updateTreatment(
+          treatmentId: treatment.id,
+          adherencePercentage: state.adherencePercentage,
+        );
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _checkAndGenerateAlerts() async {
+    try {
+      // Alert if adherence drops below 60%
+      if (state.adherencePercentage < 60 && state.logs.length >= 3) {
+        final treatment = await treatmentRepository.getPatientTreatment(patientId);
+        if (treatment == null) return;
+
+        await alertRepository.createAlert(
+          doctorId: treatment.doctorId,
+          patientId: patientId,
+          alertType: 'missed_medication',
+          severity: state.adherencePercentage < 40 ? 'critical' : 'high',
+          title: 'Low adherence: ${state.adherencePercentage.toStringAsFixed(0)}%',
+          description:
+              'Patient adherence has dropped to ${state.adherencePercentage.toStringAsFixed(1)}%.',
+        );
+      }
+
+      // Alert if 2+ consecutive missed
+      final recentLogs = state.logs.take(5).toList();
+      int consecutiveMissed = 0;
+      for (final log in recentLogs) {
+        if (log.isMissed) {
+          consecutiveMissed++;
+        } else {
+          break;
+        }
+      }
+      if (consecutiveMissed >= 2) {
+        final treatment = await treatmentRepository.getPatientTreatment(patientId);
+        if (treatment == null) return;
+
+        await alertRepository.createAlert(
+          doctorId: treatment.doctorId,
+          patientId: patientId,
+          alertType: 'missed_medication',
+          severity: consecutiveMissed >= 3 ? 'critical' : 'high',
+          title: 'Missed $consecutiveMissed consecutive doses',
+          description:
+              'Patient has missed $consecutiveMissed consecutive medication doses.',
+        );
+      }
+    } catch (_) {}
   }
 
   @override
@@ -312,9 +405,13 @@ class MedicationLogsNotifier extends StateNotifier<MedicationLogsState> {
 final patientMedicationLogsProvider = StateNotifierProvider.family<
     MedicationLogsNotifier, MedicationLogsState, String>((ref, patientId) {
   final repository = ref.watch(medicationLogRepositoryProvider);
+  final treatmentRepository = ref.watch(treatmentRepositoryProvider);
+  final alertRepository = ref.watch(alertRepositoryProvider);
   final client = ref.watch(supabaseClientProvider);
   final notifier = MedicationLogsNotifier(
     repository: repository,
+    treatmentRepository: treatmentRepository,
+    alertRepository: alertRepository,
     client: client,
     patientId: patientId,
   );
