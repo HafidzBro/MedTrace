@@ -465,10 +465,63 @@ class _ChatbotPageState extends ConsumerState<ChatbotPage> {
   Future<String> _generateAssistantResponse({
     required List<ChatbotMessageModel> conversationMessages,
   }) async {
-    if (AppConfig.openaiApiKey.trim().isEmpty) {
-      return 'Saya belum terhubung ke OpenAI. Namun secara umum, ikuti jadwal obat sesuai resep dokter dan segera hubungi tenaga kesehatan bila ada efek samping berat.';
+    // Use Groq API (free tier, llama model)
+    final apiKey = AppConfig.groqApiKey;
+    if (apiKey.isEmpty || apiKey == 'gsk_placeholder') {
+      return _fallbackResponse(conversationMessages.lastOrNull?.message ?? '');
     }
 
+    try {
+      final response = await http.post(
+        Uri.parse('https://api.groq.com/openai/v1/chat/completions'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $apiKey',
+        },
+        body: jsonEncode({
+          'model': AppConfig.groqModel,
+          'messages': [
+            {
+              'role': 'system',
+              'content':
+                  'Kamu adalah asisten kesehatan TB (Tuberkulosis) yang ramah dan informatif untuk aplikasi MedTrace. '
+                  'Gunakan bahasa Indonesia yang sederhana dan mudah dipahami. '
+                  'Berikan informasi berdasarkan panduan WHO tentang pengobatan TB. '
+                  'Selalu tekankan pentingnya minum obat teratur. '
+                  'Jangan memberikan diagnosis atau resep obat. '
+                  'Untuk keluhan serius, sarankan pasien menghubungi dokter. '
+                  'Jawab dengan singkat dan jelas (maksimal 3 paragraf).',
+            },
+            ...conversationMessages.take(20).map(
+                  (message) => {'role': message.role, 'content': message.message},
+                ),
+          ],
+          'temperature': 0.3,
+          'max_tokens': 500,
+        }),
+      );
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        final choices = data['choices'] as List<dynamic>;
+        final content = (choices.first as Map<String, dynamic>)['message']['content'] as String?;
+        return content?.trim().isNotEmpty == true
+            ? content!
+            : 'Maaf, saya belum bisa menjawab saat ini. Silakan coba lagi.';
+      }
+
+      // Fallback to OpenAI if Groq fails
+      if (AppConfig.openaiApiKey.isNotEmpty) {
+        return _callOpenAI(conversationMessages);
+      }
+
+      return _fallbackResponse(conversationMessages.lastOrNull?.message ?? '');
+    } catch (e) {
+      return _fallbackResponse(conversationMessages.lastOrNull?.message ?? '');
+    }
+  }
+
+  Future<String> _callOpenAI(List<ChatbotMessageModel> messages) async {
     final response = await http.post(
       Uri.parse('https://api.openai.com/v1/chat/completions'),
       headers: {
@@ -478,30 +531,45 @@ class _ChatbotPageState extends ConsumerState<ChatbotPage> {
       body: jsonEncode({
         'model': 'gpt-4o-mini',
         'messages': [
-          {
-            'role': 'system',
-            'content':
-                'You are a compassionate TB health educator. Use simple Indonesian. Explain TB treatment, adherence, side effects, and when to seek medical help. Never replace a doctor.',
-          },
-          ...conversationMessages.take(20).map(
-                (message) => {'role': message.role, 'content': message.message},
-              ),
+          {'role': 'system', 'content': 'Kamu asisten kesehatan TB. Jawab dalam bahasa Indonesia, singkat dan jelas.'},
+          ...messages.take(20).map((m) => {'role': m.role, 'content': m.message}),
         ],
         'temperature': 0.3,
       }),
     );
-
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw Exception('OpenAI error ${response.statusCode}');
+      throw Exception('OpenAI error');
     }
-
     final data = jsonDecode(response.body) as Map<String, dynamic>;
-    final choices = data['choices'] as List<dynamic>;
-    final firstChoice = choices.first as Map<String, dynamic>;
-    final message = firstChoice['message'] as Map<String, dynamic>;
-    return (message['content'] as String?)?.trim().isNotEmpty == true
-        ? message['content'] as String
-        : 'Maaf, saya belum bisa memberi jawaban saat ini.';
+    return (data['choices'] as List).first['message']['content'] as String;
+  }
+
+  String _fallbackResponse(String question) {
+    final q = question.toLowerCase();
+    if (q.contains('obat') || q.contains('minum')) {
+      return 'Obat TB harus diminum setiap hari pada waktu yang sama, biasanya pagi hari sebelum makan. '
+          'Jangan pernah melewatkan dosis tanpa konsultasi dokter. '
+          'Jika ada efek samping, segera hubungi dokter Anda.';
+    }
+    if (q.contains('efek samping') || q.contains('side effect')) {
+      return 'Efek samping umum obat TB: mual, urin berwarna merah (Rifampicin), kesemutan di tangan/kaki, dan gangguan penglihatan. '
+          'Jika mengalami gejala berat seperti kuning pada mata/kulit, segera ke dokter.';
+    }
+    if (q.contains('berapa lama') || q.contains('durasi')) {
+      return 'Pengobatan TB standar berlangsung 6 bulan: 2 bulan fase intensif (4 obat) dan 4 bulan fase lanjutan (2 obat). '
+          'Sangat penting untuk menyelesaikan seluruh pengobatan meskipun sudah merasa sehat.';
+    }
+    if (q.contains('menular') || q.contains('penularan')) {
+      return 'TB menular melalui udara saat penderita batuk atau bersin. '
+          'Setelah 2 minggu pengobatan rutin, risiko penularan berkurang drastis. '
+          'Gunakan masker dan pastikan ventilasi ruangan baik.';
+    }
+    return 'Saya asisten kesehatan TB MedTrace. Saya bisa membantu menjawab pertanyaan tentang:\n'
+        '- Cara minum obat TB\n'
+        '- Efek samping obat\n'
+        '- Durasi pengobatan\n'
+        '- Pencegahan penularan\n\n'
+        'Silakan tanyakan hal spesifik yang ingin Anda ketahui.';
   }
 
   void _showAboutDialog(BuildContext context) {

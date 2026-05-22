@@ -11,8 +11,15 @@ class AppConfig {
   static const Duration connectionTimeout = Duration(seconds: 30);
   static const Duration receiveTimeout = Duration(seconds: 30);
 
-  // OpenAI Config
+  // OpenAI Config (fallback)
   static const String openaiApiKey = String.fromEnvironment('OPENAI_API_KEY');
+
+  // Groq Config (free tier - primary LLM)
+  static const String groqApiKey = String.fromEnvironment(
+    'GROQ_API_KEY',
+    defaultValue: 'gsk_placeholder',
+  );
+  static const String groqModel = 'llama-3.3-70b-versatile';
 
   // Feature Flags
   static const bool enableLogging = bool.fromEnvironment(
