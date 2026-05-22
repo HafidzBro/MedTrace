@@ -235,12 +235,7 @@ class DoctorDashboardPage extends ConsumerWidget {
     return GestureDetector(
       onTap: route != null
           ? () => context.go(route)
-          : () => ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Coming soon'),
-                  duration: Duration(seconds: 1),
-                ),
-              ),
+          : null,
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,

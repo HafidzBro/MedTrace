@@ -215,12 +215,6 @@ class PatientDashboardPage extends ConsumerWidget {
         'description': 'Stay on track',
         'route': AppRoutes.reminders,
       },
-      {
-        'icon': Icons.info_outline,
-        'label': 'Help & Support',
-        'description': 'Get assistance',
-        'route': null,
-      },
     ];
 
     return GridView.builder(
