@@ -64,7 +64,7 @@ class PatientDetailPage extends ConsumerWidget {
         children: [
           Text(
             '${adherence.toStringAsFixed(1)}%',
-            style: AppTypography.headlineLarge.copyWith(
+            style: AppTypography.headline2.copyWith(
               color: Colors.white,
               fontWeight: FontWeight.w700,
             ),
