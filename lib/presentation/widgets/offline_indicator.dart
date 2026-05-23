@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:medtrace/services/connectivity_service.dart';
 
 class OfflineIndicator extends StatefulWidget {
   final Widget child;
@@ -12,14 +13,22 @@ class OfflineIndicator extends StatefulWidget {
 
 class _OfflineIndicatorState extends State<OfflineIndicator> {
   bool _isOffline = false;
-  StreamSubscription<List<ConnectivityResult>>? _sub;
+  StreamSubscription<ConnectivityResult>? _sub;
 
   @override
   void initState() {
     super.initState();
-    _sub = Connectivity().onConnectivityChanged.listen((results) {
-      setState(() => _isOffline = results.contains(ConnectivityResult.none));
+    _loadInitialStatus();
+    _sub = Connectivity().onConnectivityChanged.listen((result) {
+      if (!mounted) return;
+      setState(() => _isOffline = result == ConnectivityResult.none);
     });
+  }
+
+  Future<void> _loadInitialStatus() async {
+    final isConnected = await ConnectivityService.instance.isConnected;
+    if (!mounted) return;
+    setState(() => _isOffline = !isConnected);
   }
 
   @override

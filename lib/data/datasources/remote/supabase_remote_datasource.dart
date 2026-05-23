@@ -45,9 +45,13 @@ class SupabaseRemoteDataSource {
         );
       }
 
+      if (client.auth.currentUser != null) {
+        await client.auth.signOut();
+      }
+
       // Register user
       final authResponse = await client.auth.signUp(
-        email: email,
+        email: email.trim().toLowerCase(),
         password: password,
       );
 
@@ -57,11 +61,18 @@ class SupabaseRemoteDataSource {
 
       final userId = authResponse.user!.id;
 
+      if (authResponse.session == null || client.auth.currentUser?.id != userId) {
+        throw AuthenticationException(
+          message:
+              'Registration created an auth user, but no active patient session was returned. Disable email confirmation in Supabase Auth for this flow, or complete patient registration after email verification.',
+        );
+      }
+
       final profile = await client.rpc(
         'complete_patient_registration',
         params: {
           'p_user_id': userId,
-          'p_email': email,
+          'p_email': email.trim().toLowerCase(),
           'p_full_name': fullName,
           'p_doctor_code': code.code.toUpperCase(),
         },
