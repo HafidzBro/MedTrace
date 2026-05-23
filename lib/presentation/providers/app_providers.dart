@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:medtrace/core/error/auth_error_mapper.dart';
 import 'package:medtrace/services/supabase_service.dart';
 import 'package:medtrace/shared/theme/app_theme.dart';
 import 'package:medtrace/data/models/models.dart';
@@ -75,6 +76,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
     required String password,
     required String doctorCode,
     required String fullName,
+    String? phoneNumber,
+    String? gender,
+    String? address,
   }) async {
     try {
       state = state.copyWith(isLoading: true, error: null);
@@ -84,6 +88,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
         password: password,
         doctorCode: doctorCode,
         fullName: fullName,
+        phoneNumber: phoneNumber,
+        gender: gender,
+        address: address,
       );
 
       state = state.copyWith(
@@ -93,7 +100,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       );
       return true;
     } catch (e) {
-      state = state.copyWith(error: e.toString(), isLoading: false);
+      state = state.copyWith(error: mapAuthErrorMessage(e), isLoading: false);
       return false;
     }
   }
@@ -114,7 +121,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       );
       return true;
     } catch (e) {
-      state = state.copyWith(error: e.toString(), isLoading: false);
+      state = state.copyWith(error: mapAuthErrorMessage(e), isLoading: false);
       return false;
     }
   }
@@ -196,7 +203,7 @@ class DoctorCodeNotifier extends StateNotifier<DoctorCodeState> {
     } catch (e) {
       state = state.copyWith(
         isValid: false,
-        error: e.toString(),
+        error: mapAuthErrorMessage(e),
         isValidating: false,
       );
     }

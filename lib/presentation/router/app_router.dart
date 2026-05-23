@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:medtrace/presentation/pages/auth/login_page.dart';
@@ -15,67 +16,36 @@ import 'package:medtrace/presentation/pages/doctor/patient_detail_page.dart';
 import 'package:medtrace/presentation/pages/doctor/analytics_page.dart';
 import 'package:medtrace/presentation/pages/doctor/doctor_map_page.dart';
 import 'package:medtrace/presentation/providers/app_providers.dart';
+import 'package:medtrace/presentation/router/app_routes.dart';
+import 'package:medtrace/presentation/router/auth_redirect_policy.dart';
 
-// Router Routes
-class AppRoutes {
-  // Auth
-  static const String splash = '/';
-  static const String login = '/login';
-  static const String patientRegister = '/patient-register';
-
-  // Patient
-  static const String patientDashboard = '/patient-dashboard';
-  static const String treatment = '/patient/treatment';
-  static const String medicationSchedule = '/patient/medications';
-  static const String chatbot = '/patient/chatbot';
-  static const String tbMap = '/patient/map';
-  static const String reminders = '/patient/reminders';
-
-  // Doctor
-  static const String doctorDashboard = '/doctor-dashboard';
-  static const String patientManagement = '/doctor/patients';
-  static const String patientDetail = '/doctor/patients/detail';
-  static const String alerts = '/doctor/alerts';
-  static const String analytics = '/doctor/analytics';
-  static const String doctorMap = '/doctor/map';
-}
+export 'package:medtrace/presentation/router/app_routes.dart';
 
 // App Router Provider
 final appRouterProvider = Provider<GoRouter>((ref) {
-  final authState = ref.watch(authProvider);
+  late final GoRouter router;
 
-  return GoRouter(
+  ref.listen(authProvider, (_, __) {
+    router.refresh();
+  });
+
+  router = GoRouter(
     initialLocation: AppRoutes.splash,
     redirect: (context, state) {
-      // If not authenticated, redirect to login
-      if (!authState.isAuthenticated) {
-        if (state.uri.path == AppRoutes.patientRegister ||
-            state.uri.path == AppRoutes.login) {
-          return null;
-        }
-        return AppRoutes.login;
-      }
+      final authState = ref.read(authProvider);
 
-      // If authenticated, redirect based on role
-      final user = authState.user;
-      if (user != null) {
-        if (user.isDoctor && state.uri.path.startsWith('/doctor')) {
-          return null;
-        }
-        if (user.isPatient && state.uri.path.startsWith('/patient')) {
-          return null;
-        }
-
-        // Redirect to appropriate dashboard
-        if (user.isDoctor) {
-          return AppRoutes.doctorDashboard;
-        } else {
-          return AppRoutes.patientDashboard;
-        }
-      }
-
-      return null;
+      return resolveAuthRedirect(
+        path: state.uri.path,
+        auth: AuthRedirectState(
+          isAuthenticated: authState.isAuthenticated,
+          role: authState.user?.role,
+        ),
+      );
     },
+    errorBuilder: (context, state) => _UnknownRoutePage(
+      isAuthenticated: ref.read(authProvider).isAuthenticated,
+      isDoctor: ref.read(authProvider).user?.isDoctor ?? false,
+    ),
     routes: [
       // Auth routes
       GoRoute(
@@ -160,4 +130,50 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
     ],
   );
+
+  return router;
 });
+
+class _UnknownRoutePage extends StatelessWidget {
+  final bool isAuthenticated;
+  final bool isDoctor;
+
+  const _UnknownRoutePage({
+    required this.isAuthenticated,
+    required this.isDoctor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final fallback = !isAuthenticated
+        ? AppRoutes.login
+        : isDoctor
+            ? AppRoutes.doctorDashboard
+            : AppRoutes.patientDashboard;
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Page not found')),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.route_outlined, size: 56),
+              const SizedBox(height: 16),
+              const Text(
+                'This page is not available.',
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: () => context.go(fallback),
+                child: const Text('Go back'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

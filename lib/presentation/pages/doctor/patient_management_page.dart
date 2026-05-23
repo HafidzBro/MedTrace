@@ -56,10 +56,12 @@ class _PatientManagementPageState extends ConsumerState<PatientManagementPage> {
           overview.patient.email.toLowerCase().contains(query);
 
       final matchesFilter = switch (_filterBy) {
-        'good' => overview.adherencePercentage >= 80,
-        'warning' => overview.adherencePercentage >= 60 &&
+        'good' => overview.hasTreatment && overview.adherencePercentage >= 80,
+        'warning' => overview.hasTreatment &&
+            overview.adherencePercentage >= 60 &&
             overview.adherencePercentage < 80,
-        'critical' => overview.adherencePercentage < 60,
+        'critical' =>
+          overview.hasTreatment && overview.adherencePercentage < 60,
         _ => true,
       };
 
@@ -230,11 +232,13 @@ class _PatientManagementPageState extends ConsumerState<PatientManagementPage> {
     final phaseStatus = overview.phase.capitalizeFirst;
     final lastUpdate = overview.lastUpdatedAt ?? DateTime.now();
 
-    Color adherenceColor = adherence > 80
-        ? AppColors.success
-        : adherence > 60
-            ? AppColors.warning
-            : AppColors.error;
+    final adherenceColor = !overview.hasTreatment
+        ? AppColors.info
+        : adherence > 80
+            ? AppColors.success
+            : adherence > 60
+                ? AppColors.warning
+                : AppColors.error;
 
     return GestureDetector(
       onTap: () {
@@ -358,7 +362,9 @@ class _PatientManagementPageState extends ConsumerState<PatientManagementPage> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        '${adherence.toStringAsFixed(0)}%',
+                        overview.hasTreatment
+                            ? '${adherence.toStringAsFixed(0)}%'
+                            : 'No data',
                         style: AppTypography.labelSmall.copyWith(
                           fontWeight: FontWeight.w600,
                           color: adherenceColor,

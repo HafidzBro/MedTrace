@@ -32,7 +32,11 @@ class _DoctorMapPageState extends ConsumerState<DoctorMapPage> {
     final locationsState = ref.watch(doctorPatientLocationsProvider(userId));
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Patient Map'), centerTitle: true, elevation: 0),
+      appBar: AppBar(
+        title: const Text('Patient Map'),
+        centerTitle: true,
+        elevation: 0,
+      ),
       body: Column(
         children: [
           // Filter chips
@@ -58,20 +62,28 @@ class _DoctorMapPageState extends ConsumerState<DoctorMapPage> {
           Expanded(
             child: locationsState.isLoading
                 ? const Center(child: CircularProgressIndicator())
-                : FlutterMap(
-                    mapController: _mapController,
-                    options: MapOptions(
-                      initialCenter: _getCenter(locationsState.locations),
-                      initialZoom: 10,
-                    ),
-                    children: [
-                      TileLayer(
-                        urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                        userAgentPackageName: 'com.medtrace.app',
+                : locationsState.locations.isEmpty
+                    ? _buildEmptyState()
+                    : FlutterMap(
+                        mapController: _mapController,
+                        options: MapOptions(
+                          initialCenter: _getCenter(locationsState.locations),
+                          initialZoom: 10,
+                        ),
+                        children: [
+                          TileLayer(
+                            urlTemplate:
+                                'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                            userAgentPackageName: 'com.medtrace.app',
+                          ),
+                          MarkerLayer(
+                            markers: _buildMarkers(
+                              locationsState.locations,
+                              patientsState,
+                            ),
+                          ),
+                        ],
                       ),
-                      MarkerLayer(markers: _buildMarkers(locationsState.locations, patientsState)),
-                    ],
-                  ),
           ),
         ],
       ),
@@ -89,46 +101,97 @@ class _DoctorMapPageState extends ConsumerState<DoctorMapPage> {
   }
 
   LatLng _getCenter(List<PatientLocationModel> locations) {
-    if (locations.isEmpty) return const LatLng(-6.2, 106.8); // Jakarta default
-    final lat = locations.map((l) => l.latitude).reduce((a, b) => a + b) / locations.length;
-    final lng = locations.map((l) => l.longitude).reduce((a, b) => a + b) / locations.length;
+    final lat = locations.map((l) => l.latitude).reduce((a, b) => a + b) /
+        locations.length;
+    final lng = locations.map((l) => l.longitude).reduce((a, b) => a + b) /
+        locations.length;
     return LatLng(lat, lng);
   }
 
-  List<Marker> _buildMarkers(List<PatientLocationModel> locations, DoctorPatientsState patientsState) {
+  Widget _buildEmptyState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.location_off_outlined,
+              size: 64,
+              color: AppColors.textTertiary.withOpacity(0.5),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'No patient locations yet',
+              style: AppTypography.headlineSmall.copyWith(
+                fontWeight: FontWeight.w600,
+                color: AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'The map will appear after assigned patients share real location records.',
+              style: AppTypography.bodyMedium.copyWith(
+                color: AppColors.textTertiary,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  List<Marker> _buildMarkers(
+    List<PatientLocationModel> locations,
+    DoctorPatientsState patientsState,
+  ) {
     final patientAdherence = <String, double>{};
+    final patientsWithTreatment = <String>{};
     for (final p in patientsState.patients) {
       patientAdherence[p.patient.id] = p.adherencePercentage;
+      if (p.hasTreatment) {
+        patientsWithTreatment.add(p.patient.id);
+      }
     }
 
     return locations.where((loc) {
+      final hasTreatment = patientsWithTreatment.contains(loc.patientId);
       final adherence = patientAdherence[loc.patientId] ?? 0;
       return switch (_filterBy) {
-        'critical' => adherence < 60,
-        'warning' => adherence >= 60 && adherence < 80,
-        'good' => adherence >= 80,
+        'critical' => hasTreatment && adherence < 60,
+        'warning' => hasTreatment && adherence >= 60 && adherence < 80,
+        'good' => hasTreatment && adherence >= 80,
         _ => true,
       };
     }).map((loc) {
+      final hasTreatment = patientsWithTreatment.contains(loc.patientId);
       final adherence = patientAdherence[loc.patientId] ?? 0;
-      final color = adherence >= 80
-          ? AppColors.success
-          : adherence >= 60
-              ? AppColors.warning
-              : AppColors.error;
+      final color = !hasTreatment
+          ? AppColors.info
+          : adherence >= 80
+              ? AppColors.success
+              : adherence >= 60
+                  ? AppColors.warning
+                  : AppColors.error;
 
       return Marker(
         point: LatLng(loc.latitude, loc.longitude),
         width: 36,
         height: 36,
         child: GestureDetector(
-          onTap: () => _showPatientInfo(loc, adherence),
+          onTap: () => _showPatientInfo(
+            loc,
+            hasTreatment ? adherence : null,
+          ),
           child: Container(
             decoration: BoxDecoration(
               color: color,
               shape: BoxShape.circle,
               border: Border.all(color: Colors.white, width: 2),
-              boxShadow: [BoxShadow(color: color.withOpacity(0.4), blurRadius: 6)],
+              boxShadow: [
+                BoxShadow(color: color.withOpacity(0.4), blurRadius: 6),
+              ],
             ),
             child: const Icon(Icons.person, color: Colors.white, size: 18),
           ),
@@ -137,7 +200,7 @@ class _DoctorMapPageState extends ConsumerState<DoctorMapPage> {
     }).toList();
   }
 
-  void _showPatientInfo(PatientLocationModel loc, double adherence) {
+  void _showPatientInfo(PatientLocationModel loc, double? adherence) {
     showModalBottomSheet(
       context: context,
       builder: (context) => Padding(
@@ -146,12 +209,31 @@ class _DoctorMapPageState extends ConsumerState<DoctorMapPage> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Patient Location', style: AppTypography.labelLarge.copyWith(fontWeight: FontWeight.w600)),
+            Text(
+              'Patient Location',
+              style: AppTypography.labelLarge.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
             const SizedBox(height: 12),
-            Text('Lat: ${loc.latitude.toStringAsFixed(6)}', style: AppTypography.bodySmall),
-            Text('Lng: ${loc.longitude.toStringAsFixed(6)}', style: AppTypography.bodySmall),
-            Text('Adherence: ${adherence.toStringAsFixed(0)}%', style: AppTypography.bodySmall),
-            Text('Recorded: ${loc.recordedAt.day}/${loc.recordedAt.month}/${loc.recordedAt.year}', style: AppTypography.bodySmall),
+            Text(
+              'Lat: ${loc.latitude.toStringAsFixed(6)}',
+              style: AppTypography.bodySmall,
+            ),
+            Text(
+              'Lng: ${loc.longitude.toStringAsFixed(6)}',
+              style: AppTypography.bodySmall,
+            ),
+            Text(
+              adherence == null
+                  ? 'Adherence: No treatment data'
+                  : 'Adherence: ${adherence.toStringAsFixed(0)}%',
+              style: AppTypography.bodySmall,
+            ),
+            Text(
+              'Recorded: ${loc.recordedAt.day}/${loc.recordedAt.month}/${loc.recordedAt.year}',
+              style: AppTypography.bodySmall,
+            ),
           ],
         ),
       ),

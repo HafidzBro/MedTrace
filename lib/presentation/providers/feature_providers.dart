@@ -842,9 +842,12 @@ class DoctorPatientOverview {
     required this.lastUpdatedAt,
   });
 
+  bool get hasTreatment => treatment != null;
+
   String get phase => treatment?.phase ?? 'unknown';
 
   String get statusLabel {
+    if (!hasTreatment) return 'unknown';
     if (adherencePercentage >= 80) return 'good';
     if (adherencePercentage >= 60) return 'warning';
     return 'critical';

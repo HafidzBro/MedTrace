@@ -18,6 +18,9 @@ class SupabaseService {
     required String password,
     required String doctorCode,
     required String fullName,
+    String? phoneNumber,
+    String? gender,
+    String? address,
   }) async {
     try {
       final normalizedDoctorCode = doctorCode.toUpperCase();
@@ -58,7 +61,8 @@ class SupabaseService {
 
       final userId = authResponse.user!.id;
 
-      if (authResponse.session == null || client.auth.currentUser?.id != userId) {
+      if (authResponse.session == null ||
+          client.auth.currentUser?.id != userId) {
         throw AuthenticationException(
           message:
               'Registration created an auth user, but no active patient session was returned. Disable email confirmation in Supabase Auth for this flow, or complete patient registration after email verification.',
@@ -75,7 +79,34 @@ class SupabaseService {
         },
       ).single();
 
-      return UserModel.fromJson(profile);
+      final profileUpdates = <String, dynamic>{};
+      if (phoneNumber?.trim().isNotEmpty == true) {
+        profileUpdates['phone_number'] = phoneNumber!.trim();
+      }
+      if (gender?.trim().isNotEmpty == true) {
+        profileUpdates['gender'] = gender!.trim();
+      }
+
+      if (profileUpdates.isNotEmpty) {
+        await client.from('profiles').update(profileUpdates).eq('id', userId);
+      }
+
+      final patientUpdates = <String, dynamic>{};
+      if (phoneNumber?.trim().isNotEmpty == true) {
+        patientUpdates['phone_number'] = phoneNumber!.trim();
+      }
+      if (address?.trim().isNotEmpty == true) {
+        patientUpdates['address'] = address!.trim();
+      }
+
+      if (patientUpdates.isNotEmpty) {
+        await client.from('patients').update(patientUpdates).eq('id', userId);
+      }
+
+      if (profileUpdates.isEmpty) {
+        return UserModel.fromJson(profile);
+      }
+      return await getUser(userId);
     } catch (e) {
       logger.e('Patient registration error', error: e);
       rethrow;
