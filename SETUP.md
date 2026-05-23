@@ -70,6 +70,21 @@ flutter test test/supabase_phase1_integration_test.dart
 
 Without those variables, only the anonymous Supabase connectivity check runs.
 
+Run Phase 3 auth and role-flow checks:
+
+```powershell
+$env:MEDTRACE_DOCTOR_EMAIL='real-doctor-dev@example.com'
+$env:MEDTRACE_DOCTOR_PASSWORD='real doctor password'
+$env:MEDTRACE_PATIENT_EMAIL='real-patient-dev@example.com'
+$env:MEDTRACE_PATIENT_PASSWORD='real patient password'
+$env:MEDTRACE_ACTIVE_DOCTOR_CODE='REAL01'
+flutter test test/supabase_phase3_auth_flow_test.dart
+```
+
+`MEDTRACE_ACTIVE_DOCTOR_CODE` must be an active, non-expired code from the
+real development Supabase database. Do not use fake patient or doctor records
+as release evidence.
+
 ## Verification Commands
 
 ```bash

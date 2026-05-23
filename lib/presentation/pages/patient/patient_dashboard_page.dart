@@ -19,9 +19,13 @@ class PatientDashboardPage extends ConsumerWidget {
     final userId = user?.id ?? '';
 
     final logsState = ref.watch(patientMedicationLogsProvider(userId));
+    final hasMedicationLogs = logsState.logs.isNotEmpty;
     final adherence = logsState.adherencePercentage;
-    final todayTaken = logsState.logs.where((l) => l.isTaken && _isToday(l.scheduledDate)).length;
-    final todayTotal = logsState.logs.where((l) => _isToday(l.scheduledDate)).length;
+    final todayTaken = logsState.logs
+        .where((l) => l.isTaken && _isToday(l.scheduledDate))
+        .length;
+    final todayTotal =
+        logsState.logs.where((l) => _isToday(l.scheduledDate)).length;
 
     return Scaffold(
       appBar: AppBar(
@@ -101,8 +105,16 @@ class PatientDashboardPage extends ConsumerWidget {
                         child: _buildStatCard(
                           icon: Icons.done_all,
                           label: 'Adherence',
-                          value: '${adherence.toStringAsFixed(0)}%',
-                          color: adherence >= 80 ? AppColors.success : adherence >= 60 ? AppColors.warning : AppColors.error,
+                          value: hasMedicationLogs
+                              ? '${adherence.toStringAsFixed(0)}%'
+                              : '--',
+                          color: hasMedicationLogs
+                              ? adherence >= 80
+                                  ? AppColors.success
+                                  : adherence >= 60
+                                      ? AppColors.warning
+                                      : AppColors.error
+                              : AppColors.info,
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -110,7 +122,8 @@ class PatientDashboardPage extends ConsumerWidget {
                         child: _buildStatCard(
                           icon: Icons.medication,
                           label: 'Today',
-                          value: '$todayTaken/$todayTotal',
+                          value:
+                              todayTotal > 0 ? '$todayTaken/$todayTotal' : '--',
                           color: AppColors.patient,
                         ),
                       ),
@@ -120,6 +133,13 @@ class PatientDashboardPage extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 24),
+            if (!logsState.isLoading && !hasMedicationLogs)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: _buildEmptyClinicalDataCard(),
+              ),
+            if (!logsState.isLoading && !hasMedicationLogs)
+              const SizedBox(height: 24),
 
             // Feature menu
             Padding(
@@ -142,6 +162,33 @@ class PatientDashboardPage extends ConsumerWidget {
             const SizedBox(height: 32),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyClinicalDataCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.info.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.info.withOpacity(0.2)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.info_outline, color: AppColors.info, size: 22),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'No medication records are available yet. Your adherence summary will appear after real treatment data is recorded.',
+              style: AppTypography.bodySmall.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -316,8 +363,9 @@ class PatientDashboardPage extends ConsumerWidget {
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () {
-              ref.read(authProvider.notifier).logout();
+            onPressed: () async {
+              await ref.read(authProvider.notifier).logout();
+              if (!context.mounted) return;
               Navigator.pop(context);
               context.go(AppRoutes.login);
             },
@@ -331,6 +379,8 @@ class PatientDashboardPage extends ConsumerWidget {
 
   bool _isToday(DateTime date) {
     final now = DateTime.now();
-    return date.year == now.year && date.month == now.month && date.day == now.day;
+    return date.year == now.year &&
+        date.month == now.month &&
+        date.day == now.day;
   }
 }

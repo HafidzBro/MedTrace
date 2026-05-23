@@ -21,42 +21,88 @@ class AnalyticsPage extends ConsumerWidget {
     final alertsState = ref.watch(doctorAlertsProvider(userId));
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Analytics'), centerTitle: true, elevation: 0),
+      appBar: AppBar(
+          title: const Text('Analytics'), centerTitle: true, elevation: 0),
       body: patientsState.isLoading
           ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildSummaryCards(patientsState, alertsState),
-                  const SizedBox(height: 24),
-                  _buildAdherenceDistribution(patientsState),
-                  const SizedBox(height: 24),
-                  _buildAlertsBySeverity(alertsState),
-                  const SizedBox(height: 24),
-                  _buildPatientAdherenceList(patientsState),
-                ],
-              ),
-            ),
+          : patientsState.patients.isEmpty
+              ? _buildEmptyState()
+              : SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildSummaryCards(patientsState, alertsState),
+                      const SizedBox(height: 24),
+                      _buildAdherenceDistribution(patientsState),
+                      const SizedBox(height: 24),
+                      _buildAlertsBySeverity(alertsState),
+                      const SizedBox(height: 24),
+                      _buildPatientAdherenceList(patientsState),
+                    ],
+                  ),
+                ),
     );
   }
 
-  Widget _buildSummaryCards(DoctorPatientsState patients, DoctorAlertsState alerts) {
+  Widget _buildEmptyState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.analytics_outlined,
+              size: 64,
+              color: AppColors.textTertiary.withOpacity(0.5),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'No analytics yet',
+              style: AppTypography.headlineSmall.copyWith(
+                fontWeight: FontWeight.w600,
+                color: AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Analytics will appear after real patients and treatment records are available.',
+              style: AppTypography.bodyMedium.copyWith(
+                color: AppColors.textTertiary,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSummaryCards(
+      DoctorPatientsState patients, DoctorAlertsState alerts) {
     final totalPatients = patients.patients.length;
     final avgAdherence = totalPatients > 0
-        ? patients.patients.fold<double>(0, (sum, p) => sum + p.adherencePercentage) / totalPatients
+        ? patients.patients
+                .fold<double>(0, (sum, p) => sum + p.adherencePercentage) /
+            totalPatients
         : 0.0;
     final unresolvedAlerts = alerts.alerts.where((a) => !a.actionTaken).length;
 
     return Row(
       children: [
-        Expanded(child: _buildCard('Patients', '$totalPatients', AppColors.doctor)),
+        Expanded(
+            child: _buildCard('Patients', '$totalPatients', AppColors.doctor)),
         const SizedBox(width: 12),
-        Expanded(child: _buildCard('Avg Adherence', '${avgAdherence.toStringAsFixed(0)}%',
-            avgAdherence >= 80 ? AppColors.success : AppColors.warning)),
+        Expanded(
+            child: _buildCard(
+                'Avg Adherence',
+                '${avgAdherence.toStringAsFixed(0)}%',
+                avgAdherence >= 80 ? AppColors.success : AppColors.warning)),
         const SizedBox(width: 12),
-        Expanded(child: _buildCard('Open Alerts', '$unresolvedAlerts', AppColors.error)),
+        Expanded(
+            child: _buildCard(
+                'Open Alerts', '$unresolvedAlerts', AppColors.error)),
       ],
     );
   }
@@ -71,7 +117,9 @@ class AnalyticsPage extends ConsumerWidget {
       ),
       child: Column(
         children: [
-          Text(value, style: AppTypography.headlineSmall.copyWith(color: color, fontWeight: FontWeight.w700)),
+          Text(value,
+              style: AppTypography.headlineSmall
+                  .copyWith(color: color, fontWeight: FontWeight.w700)),
           const SizedBox(height: 4),
           Text(label, style: AppTypography.caption.copyWith(color: color)),
         ],
@@ -80,9 +128,13 @@ class AnalyticsPage extends ConsumerWidget {
   }
 
   Widget _buildAdherenceDistribution(DoctorPatientsState state) {
-    final good = state.patients.where((p) => p.adherencePercentage >= 80).length;
-    final warning = state.patients.where((p) => p.adherencePercentage >= 60 && p.adherencePercentage < 80).length;
-    final critical = state.patients.where((p) => p.adherencePercentage < 60).length;
+    final good =
+        state.patients.where((p) => p.adherencePercentage >= 80).length;
+    final warning = state.patients
+        .where((p) => p.adherencePercentage >= 60 && p.adherencePercentage < 80)
+        .length;
+    final critical =
+        state.patients.where((p) => p.adherencePercentage < 60).length;
     final total = state.patients.length;
 
     return Container(
@@ -95,7 +147,9 @@ class AnalyticsPage extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Adherence Distribution', style: AppTypography.labelLarge.copyWith(fontWeight: FontWeight.w600)),
+          Text('Adherence Distribution',
+              style: AppTypography.labelLarge
+                  .copyWith(fontWeight: FontWeight.w600)),
           const SizedBox(height: 16),
           if (total > 0) ...[
             _buildDistributionBar(good, warning, critical, total),
@@ -118,9 +172,14 @@ class AnalyticsPage extends ConsumerWidget {
         height: 24,
         child: Row(
           children: [
-            if (good > 0) Expanded(flex: good, child: Container(color: AppColors.success)),
-            if (warning > 0) Expanded(flex: warning, child: Container(color: AppColors.warning)),
-            if (critical > 0) Expanded(flex: critical, child: Container(color: AppColors.error)),
+            if (good > 0)
+              Expanded(flex: good, child: Container(color: AppColors.success)),
+            if (warning > 0)
+              Expanded(
+                  flex: warning, child: Container(color: AppColors.warning)),
+            if (critical > 0)
+              Expanded(
+                  flex: critical, child: Container(color: AppColors.error)),
           ],
         ),
       ),
@@ -130,10 +189,16 @@ class AnalyticsPage extends ConsumerWidget {
   Widget _buildLegendRow(Color color, String label, int count) {
     return Row(
       children: [
-        Container(width: 12, height: 12, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(3))),
+        Container(
+            width: 12,
+            height: 12,
+            decoration: BoxDecoration(
+                color: color, borderRadius: BorderRadius.circular(3))),
         const SizedBox(width: 8),
         Expanded(child: Text(label, style: AppTypography.bodySmall)),
-        Text('$count', style: AppTypography.bodySmall.copyWith(fontWeight: FontWeight.w600)),
+        Text('$count',
+            style:
+                AppTypography.bodySmall.copyWith(fontWeight: FontWeight.w600)),
       ],
     );
   }
@@ -143,7 +208,8 @@ class AnalyticsPage extends ConsumerWidget {
     final high = state.alerts.where((a) => a.severity == 'high').length;
     final medium = state.alerts.where((a) => a.severity == 'medium').length;
     final low = state.alerts.where((a) => a.severity == 'low').length;
-    final maxVal = [critical, high, medium, low].fold<int>(1, (a, b) => b > a ? b : a);
+    final maxVal =
+        [critical, high, medium, low].fold<int>(1, (a, b) => b > a ? b : a);
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -155,7 +221,9 @@ class AnalyticsPage extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Alerts by Severity', style: AppTypography.labelLarge.copyWith(fontWeight: FontWeight.w600)),
+          Text('Alerts by Severity',
+              style: AppTypography.labelLarge
+                  .copyWith(fontWeight: FontWeight.w600)),
           const SizedBox(height: 16),
           _buildBarRow('Critical', critical, maxVal, AppColors.error),
           const SizedBox(height: 8),
@@ -176,22 +244,33 @@ class AnalyticsPage extends ConsumerWidget {
         Expanded(
           child: Container(
             height: 20,
-            decoration: BoxDecoration(color: AppColors.borderColor, borderRadius: BorderRadius.circular(4)),
+            decoration: BoxDecoration(
+                color: AppColors.borderColor,
+                borderRadius: BorderRadius.circular(4)),
             child: FractionallySizedBox(
               alignment: Alignment.centerLeft,
               widthFactor: max > 0 ? value / max : 0,
-              child: Container(decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(4))),
+              child: Container(
+                  decoration: BoxDecoration(
+                      color: color, borderRadius: BorderRadius.circular(4))),
             ),
           ),
         ),
         const SizedBox(width: 8),
-        SizedBox(width: 24, child: Text('$value', style: AppTypography.caption.copyWith(fontWeight: FontWeight.w600))),
+        SizedBox(
+            width: 24,
+            child: Text('$value',
+                style: AppTypography.caption
+                    .copyWith(fontWeight: FontWeight.w600))),
       ],
     );
   }
 
   Widget _buildPatientAdherenceList(DoctorPatientsState state) {
-    final sorted = [...state.patients]..sort((a, b) => a.adherencePercentage.compareTo(b.adherencePercentage));
+    final sorted = state.patients.where((p) => p.hasTreatment).toList()
+      ..sort(
+        (a, b) => a.adherencePercentage.compareTo(b.adherencePercentage),
+      );
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -203,13 +282,17 @@ class AnalyticsPage extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Patient Adherence Ranking', style: AppTypography.labelLarge.copyWith(fontWeight: FontWeight.w600)),
+          Text('Patient Adherence Ranking',
+              style: AppTypography.labelLarge
+                  .copyWith(fontWeight: FontWeight.w600)),
           const SizedBox(height: 12),
           ...sorted.take(10).map((p) => Padding(
                 padding: const EdgeInsets.symmetric(vertical: 6),
                 child: Row(
                   children: [
-                    Expanded(child: Text(p.patient.fullName ?? p.patient.email, style: AppTypography.bodySmall)),
+                    Expanded(
+                        child: Text(p.patient.fullName ?? p.patient.email,
+                            style: AppTypography.bodySmall)),
                     Text(
                       '${p.adherencePercentage.toStringAsFixed(0)}%',
                       style: AppTypography.bodySmall.copyWith(

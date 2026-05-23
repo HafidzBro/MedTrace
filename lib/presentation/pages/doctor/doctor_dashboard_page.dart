@@ -24,7 +24,9 @@ class DoctorDashboardPage extends ConsumerWidget {
     final patientCount = patientsState.patients.length;
     final openAlerts = alertsState.alerts.where((a) => !a.actionTaken).length;
     final avgAdherence = patientCount > 0
-        ? patientsState.patients.fold<double>(0, (sum, p) => sum + p.adherencePercentage) / patientCount
+        ? patientsState.patients
+                .fold<double>(0, (sum, p) => sum + p.adherencePercentage) /
+            patientCount
         : 0.0;
 
     return Scaffold(
@@ -110,6 +112,11 @@ class DoctorDashboardPage extends ConsumerWidget {
                 ],
               ),
             ),
+            if (!patientsState.isLoading && patientCount == 0)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                child: _buildEmptyPatientsCard(),
+              ),
 
             // Feature menu
             Padding(
@@ -132,6 +139,33 @@ class DoctorDashboardPage extends ConsumerWidget {
             const SizedBox(height: 32),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyPatientsCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.info.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.info.withOpacity(0.2)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.info_outline, color: AppColors.info, size: 22),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'No patients are linked to your account yet. Generate a patient code to onboard a real patient.',
+              style: AppTypography.bodySmall.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -233,9 +267,7 @@ class DoctorDashboardPage extends ConsumerWidget {
     required String? route,
   }) {
     return GestureDetector(
-      onTap: route != null
-          ? () => context.go(route)
-          : null,
+      onTap: route != null ? () => context.go(route) : null,
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
@@ -303,8 +335,9 @@ class DoctorDashboardPage extends ConsumerWidget {
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () {
-              ref.read(authProvider.notifier).logout();
+            onPressed: () async {
+              await ref.read(authProvider.notifier).logout();
+              if (!context.mounted) return;
               Navigator.pop(context);
               context.go(AppRoutes.login);
             },

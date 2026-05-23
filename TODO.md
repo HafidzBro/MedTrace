@@ -225,11 +225,14 @@ Do not commit these credentials. The test file does not create fake clinical dat
 
 ### 2.1 Code search and replacement
 
-- [ ] Search for hardcoded clinical names, patient IDs, counts, adherence percentages, and map markers.
-- [ ] Replace runtime placeholder data with provider-backed data.
-- [ ] Keep mock/fake data only inside tests.
-- [ ] Ensure chatbot fallback is generic education only, not patient-specific fake advice.
-- [ ] Add empty states for dashboards with no data.
+- [x] Search for hardcoded clinical names, patient IDs, counts, adherence percentages, and map markers.
+- [x] Replace runtime placeholder data with provider-backed data.
+- [x] Keep mock/fake data only inside tests.
+- [x] Ensure chatbot fallback is generic education only, not patient-specific fake advice.
+- [x] Add empty states for dashboards with no data.
+- [x] Add runtime no-mock-data audit test to prevent obvious clinical fixtures from returning.
+- [x] Treat missing treatment/adherence data as unknown/empty state instead of fake `0%` critical data.
+- [x] Remove hardcoded doctor map center when no patient location data exists.
 
 ### 2.2 Documentation alignment
 
@@ -244,25 +247,28 @@ Do not commit these credentials. The test file does not create fake clinical dat
 
 - [ ] Login with real doctor account.
 - [ ] Login with real patient account.
-- [ ] Display useful error for invalid credentials.
-- [ ] Persist session across app restart.
-- [ ] Logout clears auth state and redirects to login.
+- [x] Display useful error for invalid credentials.
+- [x] Persist session across app restart through Supabase `currentUser` auth-state recovery on provider initialization.
+- [x] Logout clears auth state and redirects to login.
+- [x] Add Phase 3 real Supabase auth-flow tests with credential-gated doctor/patient checks.
 
 ### 3.2 Patient registration
 
-- [ ] Step 1 identity writes expected data.
-- [ ] Step 2 medical/location data is persisted or explicitly queued for later completion.
-- [ ] Step 3 doctor code validates against Supabase.
+- [x] Step 1 identity writes expected data.
+- [x] Step 2 medical/location data is persisted or explicitly queued for later completion.
+- [x] Step 3 doctor code validates against Supabase.
 - [ ] RPC creates profile, patient record, and doctor-patient relationship atomically.
 - [ ] Doctor code usage increments safely.
-- [ ] Expired/overused/invalid code shows clear error.
+- [x] Expired/overused/invalid code shows clear error.
+- [ ] Run full registration against a real active dev doctor code and disposable real dev patient email.
 
 ### 3.3 Route protection
 
-- [ ] Unauthenticated users cannot access patient or doctor routes.
-- [ ] Patient cannot access doctor routes.
-- [ ] Doctor cannot access patient-only routes except assigned patient detail if route is designed that way.
-- [ ] Unknown routes fall back safely.
+- [x] Unauthenticated users cannot access patient or doctor routes.
+- [x] Patient cannot access doctor routes.
+- [x] Doctor cannot access patient-only routes except assigned patient detail if route is designed that way.
+- [x] Unknown routes fall back safely.
+- [x] Add redirect policy tests so `/patient-register` is not mistaken for an authenticated patient route.
 
 ## Phase 4 - UI Implementation Against Mockups
 

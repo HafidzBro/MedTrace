@@ -18,9 +18,12 @@ class _PatientRegistrationPageState
     extends ConsumerState<PatientRegistrationPage> {
   late TextEditingController _fullNameController;
   late TextEditingController _emailController;
+  late TextEditingController _phoneController;
+  late TextEditingController _addressController;
   late TextEditingController _passwordController;
   late TextEditingController _confirmPasswordController;
   late TextEditingController _doctorCodeController;
+  String? _selectedGender;
   bool _showPassword = false;
   bool _showConfirmPassword = false;
   int _currentStep = 0;
@@ -30,6 +33,8 @@ class _PatientRegistrationPageState
     super.initState();
     _fullNameController = TextEditingController();
     _emailController = TextEditingController();
+    _phoneController = TextEditingController();
+    _addressController = TextEditingController();
     _passwordController = TextEditingController();
     _confirmPasswordController = TextEditingController();
     _doctorCodeController = TextEditingController();
@@ -39,6 +44,8 @@ class _PatientRegistrationPageState
   void dispose() {
     _fullNameController.dispose();
     _emailController.dispose();
+    _phoneController.dispose();
+    _addressController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     _doctorCodeController.dispose();
@@ -60,7 +67,11 @@ class _PatientRegistrationPageState
         _currentStep = 1;
       });
     } else if (_currentStep == 1) {
-      // Validate password
+      setState(() {
+        _currentStep = 2;
+      });
+    } else if (_currentStep == 2) {
+      // Validate treatment setup and register
       if (!_passwordController.text.isValidPassword) {
         _showSnackBar('Password must be at least 6 characters', isError: true);
         return;
@@ -69,11 +80,6 @@ class _PatientRegistrationPageState
         _showSnackBar('Passwords do not match', isError: true);
         return;
       }
-      setState(() {
-        _currentStep = 2;
-      });
-    } else if (_currentStep == 2) {
-      // Validate doctor code and register
       if (!_doctorCodeController.text.isValidDoctorCode) {
         _showSnackBar(
           'Please enter a valid 6-character doctor code',
@@ -102,6 +108,13 @@ class _PatientRegistrationPageState
             password: _passwordController.text,
             doctorCode: _doctorCodeController.text.toUpperCase(),
             fullName: _fullNameController.text.trim(),
+            phoneNumber: _phoneController.text.trim().isEmpty
+                ? null
+                : _phoneController.text.trim(),
+            gender: _selectedGender,
+            address: _addressController.text.trim().isEmpty
+                ? null
+                : _addressController.text.trim(),
           );
 
       if (mounted) {
@@ -323,7 +336,64 @@ class _PatientRegistrationPageState
       case 1:
         return Column(
           children: [
-            Text('Set Password', style: AppTypography.headline3),
+            Text('Medical & Location', style: AppTypography.headline3),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _phoneController,
+              keyboardType: TextInputType.phone,
+              decoration: InputDecoration(
+                labelText: 'Phone Number',
+                prefixIcon: const Icon(Icons.phone_outlined),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            DropdownButtonFormField<String>(
+              initialValue: _selectedGender,
+              decoration: InputDecoration(
+                labelText: 'Gender',
+                prefixIcon: const Icon(Icons.person_search_outlined),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              items: const [
+                DropdownMenuItem(value: 'male', child: Text('Male')),
+                DropdownMenuItem(value: 'female', child: Text('Female')),
+                DropdownMenuItem(value: 'other', child: Text('Other')),
+              ],
+              onChanged: (value) => setState(() => _selectedGender = value),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _addressController,
+              minLines: 2,
+              maxLines: 4,
+              decoration: InputDecoration(
+                labelText: 'Address',
+                alignLabelWithHint: true,
+                prefixIcon: const Icon(Icons.location_on_outlined),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Treatment details will be completed with your doctor after registration.',
+              style: AppTypography.bodySmall.copyWith(
+                color: AppColors.mediumGrey,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        );
+      case 2:
+        return Column(
+          children: [
+            Text('Treatment Setup', style: AppTypography.headline3),
             const SizedBox(height: 16),
             TextField(
               controller: _passwordController,
@@ -370,13 +440,7 @@ class _PatientRegistrationPageState
                 ),
               ),
             ),
-          ],
-        );
-      case 2:
-        return Column(
-          children: [
-            Text('Doctor Code', style: AppTypography.headline3),
-            const SizedBox(height: 16),
+            const SizedBox(height: 24),
             Text(
               'Enter the 6-character doctor code provided by your healthcare provider',
               style: AppTypography.bodyMedium.copyWith(
