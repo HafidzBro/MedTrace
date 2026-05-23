@@ -11,7 +11,7 @@ Last reviewed: 2026-05-24
 | Flutter project structure | In progress | App has core folders, pages, providers, services |
 | UI references | Ready for implementation | 20 PNG mockups plus logo under `assets/ui` scanned and documented |
 | Supabase endpoint | Development-ready baseline | REST `profiles` check returned HTTP 200 `[]` with publishable anon key on 2026-05-24 |
-| Supabase schema | Needs audit | Conflicting old and timestamped migrations exist |
+| Supabase schema | Canonicalized locally | Active migrations are timestamped only; legacy `001/002` archived outside active Supabase folder |
 | Runtime data policy | Enforced for current scan | No hardcoded clinical runtime data found in `lib` or `test`; keep scanning per feature |
 | Analyzer/build | Baseline recovered | Analyzer finishes; debug APK builds successfully |
 | Testing | Baseline recovered | `flutter test` passes after Supabase v2 timer handling |
@@ -153,10 +153,13 @@ Phase 0 status:
 ### 1.1 Supabase connection
 
 - [x] Confirm Supabase REST endpoint responds with anon key.
+- [x] Add real-database integration test for anon Supabase profile endpoint.
+- [ ] Provide real dev doctor credentials via `MEDTRACE_DOCTOR_EMAIL` and `MEDTRACE_DOCTOR_PASSWORD`, then run Phase 1 integration tests.
+- [ ] Provide real dev patient credentials via `MEDTRACE_PATIENT_EMAIL` and `MEDTRACE_PATIENT_PASSWORD`, then run Phase 1 integration tests.
 - [ ] Confirm Supabase Auth login works with a real doctor account.
 - [ ] Confirm Supabase Auth login works with a real patient account.
 - [ ] Confirm patient registration works with a real active doctor code.
-- [ ] Confirm `complete_patient_registration` RPC exists in the actual Supabase project.
+- [x] Confirm `complete_patient_registration` RPC exists in the actual Supabase project.
 - [ ] Confirm Realtime is enabled for required tables.
 - [ ] Confirm storage buckets if avatars/documents will be used.
 
@@ -164,12 +167,17 @@ Phase 0 status:
 
 Release blocker.
 
-- [ ] Decide canonical migration set.
-- [ ] Resolve conflicts between `001_init.sql`/`002_registration.sql` and timestamped migrations.
-- [ ] Ensure code and database agree on patient foreign keys:
+- [x] Decide canonical migration set.
+- [x] Move legacy `001_init.sql` and `002_registration.sql` out of active `supabase/migrations`.
+- [x] Add migration README documenting canonical order.
+- [x] Add migration audit test to prevent legacy migration files from returning to the active folder.
+- [x] Resolve local migration folder conflicts between `001_init.sql`/`002_registration.sql` and timestamped migrations.
+- [x] Ensure active migration files and current code agree on patient foreign keys:
   - current code expects `treatments.patient_id` as profile UUID,
-  - old migrations use a separate `patients.id/profile_id` shape.
-- [ ] Ensure only roles `doctor` and `patient` exist unless admin tooling is intentionally added.
+  - active migrations use profile UUIDs for `patients.id`, `doctor_patients.patient_id`, `treatments.patient_id`, medication logs, reminders, locations, chatbot records, and alerts,
+  - old migrations using a separate `patients.id/profile_id` shape are archived under `supabase/legacy_migrations/`.
+- [x] Ensure active migrations only define roles `doctor` and `patient` unless admin tooling is intentionally added.
+- [ ] Verify the actual Supabase database has no legacy `admin` profile role.
 - [ ] Add missing migration for any fields required by mockups:
   - national identity, if legally required,
   - TB category,
@@ -180,8 +188,28 @@ Release blocker.
 - [ ] Apply migrations to a clean dev Supabase project.
 - [ ] Export schema or document exact migration order.
 
+Canonical active migration order:
+1. `20240101000000_init_schema.sql`
+2. `20240101000001_rls_policies.sql`
+3. `20260507000000_security_hardening.sql`
+
+Legacy migrations are preserved under `supabase/legacy_migrations/` for reference only.
+
+Run Phase 1 real database checks:
+
+```powershell
+$env:MEDTRACE_DOCTOR_EMAIL='real-doctor-dev@example.com'
+$env:MEDTRACE_DOCTOR_PASSWORD='real doctor password'
+$env:MEDTRACE_PATIENT_EMAIL='real-patient-dev@example.com'
+$env:MEDTRACE_PATIENT_PASSWORD='real patient password'
+flutter test test/supabase_phase1_integration_test.dart
+```
+
+Do not commit these credentials. The test file does not create fake clinical data.
+
 ### 1.3 RLS verification
 
+- [x] Add real-database integration test placeholder for patient RLS with no mock clinical data.
 - [ ] Patient can read own `profiles` row.
 - [ ] Patient can update own allowed profile fields.
 - [ ] Patient cannot read another patient profile.

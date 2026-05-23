@@ -58,6 +58,18 @@ Create real development accounts in Supabase:
 
 Do not document or ship shared fake credentials. Store any local-only credentials outside the repository.
 
+Run Phase 1 real database tests with environment variables:
+
+```powershell
+$env:MEDTRACE_DOCTOR_EMAIL='real-doctor-dev@example.com'
+$env:MEDTRACE_DOCTOR_PASSWORD='real doctor password'
+$env:MEDTRACE_PATIENT_EMAIL='real-patient-dev@example.com'
+$env:MEDTRACE_PATIENT_PASSWORD='real patient password'
+flutter test test/supabase_phase1_integration_test.dart
+```
+
+Without those variables, only the anonymous Supabase connectivity check runs.
+
 ## Verification Commands
 
 ```bash
