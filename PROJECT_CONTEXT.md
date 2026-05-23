@@ -1,495 +1,272 @@
 # MedTrace Mobile - Project Context
 
-## 1. Overview
+Dokumen ini adalah sumber konteks utama untuk aplikasi MedTrace. Gunakan bersama `AGENT_CONTEXT.md`, `UI_CONTEXT.md`, dan `TODO.md`.
 
-MedTrace adalah aplikasi mobile Flutter untuk monitoring dan manajemen pengobatan Tuberkulosis (TB). Aplikasi ini menghubungkan pasien TB dengan dokter melalui sistem tracking adherence obat, lokasi geografis, chatbot AI, dan alert system.
+Last reviewed: 2026-05-24
 
-- Platform: Android (minSdk 21) + iOS (11.0+)
-- Tech Stack: Flutter 3.19+ / Dart 3.3+ / Supabase / Riverpod / GoRouter
-- Target: Production-ready, store submission
+## 1. Product Summary
 
----
+MedTrace adalah aplikasi Flutter untuk pemantauan terapi Tuberkulosis (TB) yang menghubungkan pasien dengan dokter atau tenaga kesehatan. Fokus aplikasi adalah kepatuhan minum obat, monitoring status terapi, pengingat, pelacakan lokasi yang relevan secara klinis, edukasi TB berbasis AI, alert risiko, dan laporan terapi.
 
-## 2. Architecture
+Target rilis:
+- Android first, siap Google Play Store.
+- iOS didukung oleh struktur Flutter, tetapi Play Store menjadi prioritas awal.
+- Production-ready hanya boleh dinyatakan setelah checklist quality, privacy, security, dan release build selesai.
 
-Clean Architecture dengan strict layer separation:
+Prinsip produk:
+- Patient safety first.
+- Data klinis harus berasal dari Supabase, bukan hardcoded runtime data.
+- UI boleh mengikuti mockup di `assets/ui`, tetapi seluruh nilai dinamis harus diambil dari database atau state nyata.
+- Jika data belum ada, tampilkan loading, empty state, error state, atau onboarding action. Jangan membuat data palsu agar layar terlihat penuh.
 
-```
-Presentation Layer (Pages, Providers, Widgets, Router)
-        |
-        v
-State Management Layer (Riverpod StateNotifiers)
-        |
-        v
-Domain Layer (Entities, Repository Interfaces)
-        |
-        v
-Data Layer (Repositories, DataSources, Models)
-        |
-        v
-External (Supabase PostgreSQL + Auth + Storage)
-```
+## 2. Roles
 
-### Layer Responsibilities
+MedTrace hanya memiliki dua role aplikasi:
 
-PRESENTATION (lib/presentation/):
-- Display UI, handle user interactions, trigger business logic via providers
-- Pages: full screen widgets (ConsumerWidget)
-- Providers: Riverpod state management
-- Router: GoRouter navigation with role-based redirect
-- TIDAK BOLEH contain business logic atau call API langsung
+| Role | Cara dibuat | Akses utama |
+|---|---|---|
+| doctor | Dibuat oleh admin/operator melalui database atau tooling internal | Melihat pasien yang terhubung, membuat doctor code, mengelola terapi, membaca alert, melihat laporan dan peta pasien |
+| patient | Registrasi memakai doctor code valid | Melihat data sendiri, mencatat obat, melihat progres, reminder, chatbot, profil |
 
-STATE MANAGEMENT (lib/presentation/providers/):
-- Manage application state via StateNotifier
-- Call repositories for data
-- Handle async operations
-- Notify listeners of changes
+Aturan role:
+- Pasien tidak boleh melihat data pasien lain.
+- Pasien tidak boleh mengakses fitur dokter.
+- Dokter hanya boleh mengakses pasien yang terhubung melalui `doctor_patients`.
+- Tidak ada self-registration untuk dokter dari aplikasi mobile.
 
-DOMAIN (lib/domain/):
-- Pure business objects (entities)
-- Repository interfaces (abstract classes)
-- Tidak ada dependency ke framework
+## 3. Technical Stack
 
-DATA (lib/data/):
-- JSON-serializable models (extend entities)
-- Remote data source (Supabase API calls)
-- Repository implementations
-- Error handling dan data transformation
+| Area | Technology |
+|---|---|
+| Framework | Flutter 3.19+ |
+| Language | Dart 3.3+ |
+| State management | Riverpod 2.x, StateNotifier pattern |
+| Navigation | GoRouter |
+| Backend | Supabase Auth, PostgreSQL, RLS, Realtime (`supabase_flutter 2.12.4` in the current repo) |
+| Maps | `flutter_map` and OpenStreetMap preferred; `google_maps_flutter` only if a real key and policy are prepared |
+| Location | geolocator |
+| Notifications | flutter_local_notifications |
+| Offline/cache | Hive, connectivity_plus, offline queue service |
+| AI | Groq/OpenAI-compatible chat endpoint via environment keys |
+| PDF | pdf, printing |
 
----
+## 4. Architecture
 
-## 3. Directory Structure
+Clean Architecture dengan layer separation:
 
-```
-lib/
-  core/
-    config/          app_config.dart (Supabase URL/key, OpenAI key, timeouts, feature flags)
-    constants/       app_constants.dart (roles, status, severity, map, notification constants)
-    error/           exceptions.dart (12 custom exception types), failures.dart
-    extensions/      extensions.dart (40+ utility extensions on core Dart types)
-  data/
-    datasources/
-      remote/        supabase_remote_datasource.dart (50+ methods)
-    models/          models.dart (13 data models with fromJson/toJson)
-    repositories/    repositories.dart (10 repository implementations)
-  domain/
-    entities/        entities.dart (11 entities: User, DoctorCode, DoctorPatient, Treatment, Medication, MedicationLog, Reminder, PatientLocation, ChatbotConversation, ChatbotMessage, Alert, Notification)
-  presentation/
-    pages/
-      auth/          login_page.dart, patient_registration_page.dart
-      patient/       patient_dashboard_page.dart, treatment_details_page.dart, medication_schedule_page.dart, chatbot_page.dart, tb_map_page.dart, reminders_page.dart
-      doctor/        doctor_dashboard_page.dart, patient_management_page.dart, alerts_page.dart
-    providers/
-      app_providers.dart       (auth, theme, router, repository/datasource DI)
-      feature_providers.dart   (5 StateNotifiers: Treatment, MedicationLogs, Reminders, Locations, Chatbot)
-    router/          app_router.dart (GoRouter with role-based redirect)
-  services/
-    supabase_service.dart
-    notification_service.dart
-  shared/
-    theme/           app_theme.dart (Material 3, patient=teal, doctor=dark teal)
-  main.dart
-
-supabase/
-  migrations/
-    20240101000000_init_schema.sql      (12 tables, indexes, triggers)
-    20240101000001_rls_policies.sql     (40+ RLS policies)
-    20260507000000_security_hardening.sql
-
-test/
-assets/
-  images/
-  icons/
-  animations/
+```text
+Presentation: pages, widgets, router
+State: Riverpod providers and StateNotifiers
+Domain: entities and repository contracts
+Data: models, repositories, Supabase remote datasource
+External: Supabase, local notifications, cache, AI provider
 ```
 
----
+Rules:
+- Page tidak boleh call Supabase langsung.
+- Page hanya membaca provider dan mengirim event/action.
+- Repository berurusan dengan data source dan transformasi data.
+- DataSource berisi query Supabase dan melempar exception yang jelas.
+- Entity tetap pure Dart.
+- Model bertanggung jawab atas `fromJson` dan `toJson`.
 
-## 4. State Management
+## 5. Current Repository Shape
 
-### Provider Types
+Important paths:
 
-Simple Provider (read-only DI):
-```dart
-final supabaseClientProvider = Provider<SupabaseClient>((ref) => Supabase.instance.client);
+| Concern | Path |
+|---|---|
+| Entry point | `lib/main.dart` |
+| App config | `lib/core/config/app_config.dart` |
+| Constants | `lib/core/constants/app_constants.dart` |
+| Entities | `lib/domain/entities/entities.dart` |
+| Models | `lib/data/models/models.dart` |
+| Repositories | `lib/data/repositories/repositories.dart` |
+| Supabase datasource | `lib/data/datasources/remote/supabase_remote_datasource.dart` |
+| Auth and app providers | `lib/presentation/providers/app_providers.dart` |
+| Feature providers | `lib/presentation/providers/feature_providers.dart` |
+| Router | `lib/presentation/router/app_router.dart` |
+| Theme | `lib/shared/theme/app_theme.dart` |
+| Services | `lib/services/` |
+| Supabase migrations | `supabase/migrations/` |
+| UI references | `assets/ui/` |
+
+## 6. Database Model
+
+Primary production schema should use these tables:
+
+| Table | Purpose |
+|---|---|
+| `profiles` | Auth-linked user profile and role |
+| `patients` | Patient medical/contact/location metadata |
+| `doctor_codes` | Registration code generated by doctors |
+| `doctor_patients` | Doctor-patient assignment |
+| `treatments` | TB treatment plan and adherence summary |
+| `medications` | Prescribed medication records |
+| `medication_logs` | Scheduled and actual dose log |
+| `reminders` | Patient reminder schedule |
+| `patient_locations` | Patient location records |
+| `chatbot_conversations` | Chat sessions |
+| `chatbot_messages` | Chat messages |
+| `chatbot_logs` | Audit-friendly chat mirror |
+| `alerts` | Doctor alert queue |
+| `notifications` | In-app notification records |
+
+Important migration note:
+- The repo contains timestamped migrations (`20240101000000_*`, `20240101000001_*`, `20260507000000_*`) and older migrations (`001_init.sql`, `002_registration.sql`).
+- The older migrations describe a different schema shape (`patients.profile_id`, `medication_logs.treatment_id`, `admin` role, PostGIS) than the current app code expects.
+- Before any real production database migration, consolidate or retire conflicting old migrations. This is a release blocker.
+- The development REST endpoint responds, but the migration history must still be cleaned before the database can be treated as production-ready.
+
+## 7. Supabase Status
+
+Configured project:
+- URL: `https://wnpdpaiwescxkqigqlrt.supabase.co`
+- Anon key is currently stored in `AppConfig`.
+
+Connection check on 2026-05-23:
+- REST request to `/rest/v1/profiles?select=id&limit=1` returned HTTP 200 with `[]`.
+- This confirms the Supabase REST endpoint and anon key respond from the development machine.
+- It does not prove auth flows, RLS correctness, migrations, realtime, storage, or RPC behavior are production-ready.
+
+Connection check on 2026-05-24:
+- REST request to `/rest/v1/profiles?select=id,role&limit=1` returned HTTP 200 with `[]`.
+- This reconfirms the development endpoint and publishable anon key are reachable after dependency upgrades.
+
+Release guidance:
+- Move environment-specific values to `--dart-define` or secure CI/CD config before store release.
+- Never commit service role keys.
+- Test with real dev users for doctor and patient roles.
+- Validate RLS with both positive and negative cases.
+
+## 8. No Mock Runtime Data Policy
+
+Runtime app screens must follow this rule:
+
+```text
+Real data from Supabase, authenticated user/session state, local cache of previously synced Supabase data, or explicit empty/error/loading state.
 ```
 
-StateNotifierProvider (mutable state):
-```dart
-final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) => AuthNotifier());
-```
-
-Family Provider (parameterized by userId):
-```dart
-final patientTreatmentProvider = StateNotifierProvider.family<TreatmentNotifier, TreatmentState, String>(
-  (ref, patientId) => TreatmentNotifier(patientId: patientId),
-);
-```
-
-### State Pattern
-
-Setiap feature state memiliki:
-- `data` (nullable atau list)
-- `isLoading` (bool)
-- `error` (String?)
-- `copyWith()` method
-
-### Key Rules
-
-- `ref.watch()` di build method untuk reactive rebuild
-- `ref.read()` di callbacks/event handlers untuk one-time access
-- `ref.watch(provider.select((s) => s.field))` untuk granular rebuild
-- `ref.refresh(provider)` untuk force reload
-- Family provider: setiap unique parameter = instance baru, gunakan String ID
-
----
-
-## 5. Database Schema
-
-12 tabel PostgreSQL dengan RLS:
-
-| Tabel | Deskripsi | Key Columns |
-|-------|-----------|-------------|
-| profiles | User data | id, email, role, full_name, is_active |
-| patients | Patient medical metadata | id, doctor_id, emergency_contact, latitude, longitude |
-| doctor_codes | Registration codes | doctor_id, code (6-char), expires_at, max_uses, current_uses |
-| doctor_patients | Doctor-patient relationship | doctor_id, patient_id, linked_at |
-| treatments | TB treatment plans | patient_id, doctor_id, phase, status, adherence_percentage |
-| medications | Prescribed medications | treatment_id, name, dosage, unit, frequency |
-| medication_logs | Daily adherence logs | medication_id, patient_id, status (taken/missed/skipped), taken_at |
-| reminders | Scheduled reminders | patient_id, title, reminder_type, scheduled_date, is_sent |
-| patient_locations | GPS tracking history | patient_id, latitude, longitude, accuracy, recorded_at |
-| chatbot_conversations | AI chat sessions | patient_id, title |
-| chatbot_messages | Individual messages | conversation_id, role (user/assistant), message |
-| alerts | Doctor alerts | doctor_id, patient_id, alert_type, severity, is_read, action_taken |
-
-### Database Conventions
-
-- Tabel: snake_case plural
-- Kolom: snake_case
-- Primary key: UUID gen_random_uuid()
-- Timestamps: created_at + updated_at (auto-trigger)
-- Foreign keys: <entity>_id referencing profiles(id) atau parent table
-- Enums: TEXT with CHECK constraint
-- Spatial: cube + earthdistance extensions
-
-### RLS Policies
-
-- Patient: hanya bisa read/write data sendiri
-- Doctor: hanya bisa access data pasien yang terhubung
-- Semua unauthorized access di-block
-
----
-
-## 6. Routing
-
-GoRouter dengan role-based redirect:
-
-| Route | Page | Role |
-|-------|------|------|
-| /login | LoginPage | public |
-| /patient-register | PatientRegistrationPage | public |
-| /patient-dashboard | PatientDashboardPage | patient |
-| /patient/treatment | TreatmentDetailsPage | patient |
-| /patient/medications | MedicationSchedulePage | patient |
-| /patient/chatbot | ChatbotPage | patient |
-| /patient/map | TbMapPage | patient |
-| /patient/reminders | RemindersPage | patient |
-| /doctor-dashboard | DoctorDashboardPage | doctor |
-| /doctor/patients | PatientManagementPage | doctor |
-| /doctor/alerts | AlertsPage | doctor |
-
-Redirect logic:
-- Unauthenticated -> /login
-- Authenticated doctor accessing /patient/* -> /doctor-dashboard
-- Authenticated patient accessing /doctor/* -> /patient-dashboard
-
----
-
-## 7. Features
-
-### Patient Features
-
-AUTHENTICATION:
-- Login email/password via Supabase Auth
-- Register dengan doctor code (3-step wizard)
-- Password reset via email
-- Session persistence
-
-DASHBOARD:
-- Personalized greeting
-- Quick stats: adherence %, pending medications
-- Feature grid navigation (6 items)
-
-TREATMENT DETAILS:
-- Phase indicator (intensive 0-2 bulan / continuation 3-6 bulan)
-- Progress bar, status, doctor assigned, notes
-- Adherence visualization
-
-MEDICATION SCHEDULE:
-- Date navigator (prev/current/next day)
-- Color-coded adherence (green >=80%, yellow 60-80%, red <60%)
-- Mark taken/missed per medication
-- Auto-logging ke database
-
-TB MAP:
-- OpenStreetMap via flutter_map (no API key)
-- Current location marker (blue)
-- Location history markers (orange)
-- GPS accuracy indicator
-- Location recording ke database
-
-AI CHATBOT:
-- Conversation interface with message bubbles
-- Help topics (empty state)
-- Chat history saved to database
-- System prompt: WHO-based TB health educator
-- OpenAI API integration (pending)
-
-REMINDERS:
-- Upcoming dan history sections
-- Create reminder dialog (title, type, date, time)
-- Types: medication, appointment, checkup, custom
-- Local notification scheduling (pending)
-
-### Doctor Features
-
-DASHBOARD:
-- Patient count, open alerts, average adherence
-- Feature grid navigation (4 items)
-
-PATIENT MANAGEMENT:
-- Search bar (realtime filter by name/email)
-- Filter chips: all, good (>=80%), warning (60-80%), critical (<60%)
-- Patient cards with adherence display
-- Generate doctor code dialog (6-char, 30-day validity)
-
-ALERTS:
-- Severity filtering: all, critical, high, medium, low
-- Alert cards with severity icon, timestamp, unread indicator
-- Alert detail bottom sheet
-- Mark resolved action
-- Alert types: missed_medication, adherence_drop, critical_delay, appointment_missed, side_effects_reported, location_risk
-
----
-
-## 8. Design System
-
-### Patient Theme
-- Primary: #0F766E (Teal)
-- Secondary: #14B8A6
-- Background: #F0FDFA
-- Accent: #EAB308
-- UI: simple, guided, clear actions, minimal data overload
-
-### Doctor Theme
-- Primary: #134E4A (Dark Teal)
-- Secondary: #0F766E
-- Background: #ECFEFF
-- Alert: red (critical), yellow (warning), green (stable)
-- UI: data-rich dashboards, analytical cards, dense structured info
-
-### Material 3
-- Rounded cards, soft shadows, clean spacing
-- High readability, modern medical UI
-- flutter_screenutil untuk responsive sizing
-
----
-
-## 9. Dependencies
-
-| Package | Version | Purpose |
-|---------|---------|---------|
-| supabase_flutter | ^1.10.7 | Backend (auth, DB, storage, realtime) |
-| flutter_riverpod | ^2.4.1 | State management |
-| go_router | ^13.0.0 | Navigation |
-| flutter_map | ^6.1.0 | OpenStreetMap |
-| geolocator | ^10.1.0 | GPS location |
-| flutter_local_notifications | ^16.3.0 | Local notifications |
-| hive / hive_flutter | ^2.2.3 | Local storage/cache |
-| dio | ^5.3.1 | HTTP client |
-| flutter_screenutil | ^5.9.0 | Responsive UI |
-| equatable | ^2.0.5 | Value equality |
-| shared_preferences | ^2.2.2 | Simple key-value storage |
-| cached_network_image | ^3.3.0 | Image caching |
-| image_picker | ^1.0.4 | Camera/gallery |
-| pdf / printing | ^3.10.4 | PDF generation |
-| flutter_secure_storage | ^9.0.0 | Secure credential storage |
-| connectivity_plus | ^5.0.0 | Network state detection |
-| shimmer | ^3.0.0 | Loading skeleton |
-| lottie | ^2.6.0 | Animations |
-| intl | ^0.19.0 | Date/number formatting |
-| logger | ^2.0.0 | Structured logging |
-
-Dev dependencies: flutter_lints, riverpod_generator, build_runner, hive_generator, flutter_launcher_icons, flutter_native_splash
-
----
-
-## 10. Coding Standards
-
-### Naming
-
-- Files: snake_case (medication_schedule_page.dart)
-- Classes: PascalCase (MedicationSchedulePage)
-- Variables/methods: camelCase (medicationList, loadData)
-- Constants: camelCase atau UPPER_CASE (kMinimumAdherence, MEDICATION_TABLE)
-- Private: _prefix (_privateMethod)
-- Booleans: is/has prefix (isLoading, hasError)
-
-### Entity Pattern
-
-```dart
-class MyEntity extends Equatable {
-  final String id;
-  const MyEntity({required this.id});
-  MyEntity copyWith({String? id}) => MyEntity(id: id ?? this.id);
-  @override
-  List<Object?> get props => [id];
-}
-```
-
-### Model Pattern (extends Entity)
-
-```dart
-class MyModel extends MyEntity {
-  const MyModel({required super.id});
-  factory MyModel.fromJson(Map<String, dynamic> json) => MyModel(id: json['id']);
-  Map<String, dynamic> toJson() => {'id': id};
-}
-```
-
-### StateNotifier Pattern
-
-```dart
-class MyNotifier extends StateNotifier<MyState> {
-  final MyRepository _repository;
-  MyNotifier(this._repository) : super(const MyState());
-
-  Future<void> loadData(String userId) async {
-    state = state.copyWith(isLoading: true, error: null);
-    try {
-      final data = await _repository.getData(userId);
-      state = state.copyWith(data: data, isLoading: false);
-    } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
-    }
-  }
-}
-```
-
-### Page Pattern
-
-```dart
-class MyPage extends ConsumerWidget {
-  const MyPage({super.key});
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final userId = ref.watch(authProvider).user!.id;
-    final state = ref.watch(myProvider(userId));
-    if (state.isLoading) return const Center(child: CircularProgressIndicator());
-    if (state.error != null) return Center(child: Text(state.error!));
-    return Scaffold(...);
-  }
-}
-```
-
-### Rules
-
-- Gunakan const constructors di mana pun memungkinkan
-- Immutable data structures, copyWith untuk update
-- Handle semua error cases (try-catch di async operations)
-- Watch hanya providers yang dibutuhkan (hindari unnecessary rebuild)
-- Jangan mix business logic dengan UI
-- Jangan call API langsung dari widget
-- Jangan gunakan null! kecuali benar-benar yakin
-- Jangan tinggalkan TODO comments di production code
-
----
-
-## 11. Supabase Access Pattern
-
-```dart
-// READ
-final response = await supabaseClient
-    .from('table_name')
-    .select()
-    .eq('patient_id', patientId)
-    .order('created_at', ascending: false);
-
-// CREATE
-await supabaseClient.from('table_name').insert({'column': value});
-
-// UPDATE
-await supabaseClient.from('table_name').update({'column': newValue}).eq('id', id);
-
-// DELETE
-await supabaseClient.from('table_name').delete().eq('id', id);
-```
-
----
-
-## 12. Testing
+Not allowed in production paths:
+- Hardcoded patient names, IDs, adherence percentages, alert counts, medication logs, doctor names, map markers, or chatbot messages.
+- Fake dashboards that look complete without backend data.
+- Fallback data that can be mistaken for clinical truth.
+
+Allowed:
+- Tests may use controlled test doubles for behavior isolation only, but feature acceptance and Supabase flows must be verified against real development database accounts.
+- Design documentation may describe visual examples, but implementation must bind them to real fields.
+- Empty states may include neutral instructional text.
+- AI fallback may provide generic educational text only if clearly non-personalized and not saved as if it were clinician data.
+
+## 9. Feature Scope
+
+Patient:
+- Login and patient registration with doctor code.
+- Patient dashboard with daily therapy summary.
+- Treatment detail and progress.
+- Medication schedule and dose logging.
+- Reminder CRUD and local notifications.
+- Adherence history.
+- TB education chatbot with medical disclaimer.
+- Patient profile and notification preferences.
+- Patient map/location consent flow.
+
+Doctor:
+- Dashboard with patient counts and risk indicators.
+- Patient directory with search/filter.
+- Patient detail profile.
+- Update therapy status with required notes.
+- Alert center with severity filters and resolution flow.
+- Reminder/adherence monitoring view.
+- TB case distribution map.
+- PDF report generation.
+- Analytics dashboard after charting dependency is finalized.
+
+Cross-cutting:
+- Role-based route protection.
+- Offline queue for patient actions.
+- Realtime updates for medication logs, treatments, and alerts.
+- Robust loading/empty/error/retry states.
+- Accessibility labels and readable contrast.
+- Privacy policy, permission disclosures, account deletion flow.
+
+## 10. Routing Expectations
+
+Public:
+- `/login`
+- `/patient-register`
+
+Patient:
+- `/patient-dashboard`
+- `/patient/treatment`
+- `/patient/medications`
+- `/patient/reminders`
+- `/patient/chatbot`
+- `/patient/map`
+- `/patient/profile`
+
+Doctor:
+- `/doctor-dashboard`
+- `/doctor/patients`
+- `/doctor/patients/:id`
+- `/doctor/alerts`
+- `/doctor/map`
+- `/doctor/analytics`
+
+Redirect rules:
+- Unauthenticated users go to login.
+- Authenticated doctors are kept in doctor routes.
+- Authenticated patients are kept in patient routes.
+- Unknown or unauthorized routes should resolve to a safe dashboard or clear error screen.
+
+## 11. UI Direction
+
+The visual source of truth is `UI_CONTEXT.md` plus the images in `assets/ui`.
+
+Key visual traits:
+- Mobile portrait, 360-430 px reference width.
+- Clean medical UI.
+- Deep teal primary color, mint positive accent, red only for risk/error.
+- White/off-white surfaces.
+- Cards, chips, badges, progress bars, bottom navigation.
+- Doctor screens are denser and monitoring-oriented.
+- Patient screens are calmer, guided, and action-focused.
+
+## 12. Quality Bar For Play Store
+
+Minimum before release candidate:
+- `flutter analyze --no-pub` completes and has no errors.
+- Debug build works.
+- Release AAB builds and is signed.
+- No mock runtime data.
+- Supabase dev/staging/prod environments are separated or explicitly controlled.
+- RLS verified for doctor and patient accounts.
+- Location and notification permissions are justified in app and Play Console.
+- Privacy policy and account deletion path exist.
+- Crash-free smoke test on at least one physical Android device.
+- Store screenshots match implemented UI, not only mockups.
+
+Current build baseline on 2026-05-24:
+- `flutter build apk --debug` succeeds and outputs `build/app/outputs/flutter-apk/app-debug.apk`.
+- `flutter test` passes.
+- `flutter analyze --no-pub` completes quickly but still reports lint/info/warning backlog.
+
+## 13. Common Commands
 
 ```bash
-flutter analyze          # Static analysis
-flutter test             # Unit/widget tests
-flutter test --coverage  # With coverage
-flutter build apk --debug   # Debug build verification
-flutter build apk --release # Release build
+flutter pub get
+flutter analyze --no-pub
+flutter test
+flutter build apk --debug
+flutter build appbundle --release --obfuscate --split-debug-info=build/debug-info
+dart format lib test
 ```
 
-### Test Pattern
+If analyzer hangs on Windows:
 
-```dart
-void main() {
-  group('MyNotifier', () {
-    test('loads data successfully', () async {
-      final mockRepo = MockMyRepository();
-      when(mockRepo.getData()).thenAnswer((_) async => [MyData(id: '1')]);
-      final container = ProviderContainer(
-        overrides: [myRepositoryProvider.overrideWithValue(mockRepo)],
-      );
-      // assertions
-    });
-  });
-}
+```powershell
+Get-Process dart,dartvm -ErrorAction SilentlyContinue | Stop-Process
+Remove-Item -Recurse -Force .dart_tool
+flutter pub get
+flutter analyze --no-pub
 ```
-
----
-
-## 13. Performance
-
-- Lazy loading: FutureProvider.autoDispose
-- Granular rebuild: ref.watch(provider.select((s) => s.field))
-- Pagination: offset/limit di repository queries
-- Caching: Hive untuk offline data
-- Efficient queries: indexed columns, spatial indexes
-- Minimal rebuilds: watch specific providers, not entire state
-
----
-
-## 14. Common Issues
-
-| Issue | Solution |
-|-------|----------|
-| GoRouter redirect loop | Cek path condition sebelum redirect |
-| Supabase query returns empty | Cek RLS policy mengizinkan akses |
-| Family provider creates new instance | Gunakan String ID, bukan object |
-| DateTime dari Supabase UTC | Convert ke local saat display |
-| Hot reload not working | Gunakan hot restart (R) |
-| Gradle issues | flutter clean && flutter pub get |
-| Pod issues (iOS) | cd ios && rm -rf Pods Podfile.lock && cd .. && flutter pub get |
-
----
-
-## 15. Project Statistics
-
-- Lines of code: 12,000+
-- Source files: 31
-- Completion: ~70% toward MVP
-- Database tables: 12
-- RLS policies: 40+
-- Entities: 11
-- Repositories: 10
-- Providers: 15+
-- Pages: 11

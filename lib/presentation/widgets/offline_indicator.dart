@@ -13,15 +13,15 @@ class OfflineIndicator extends StatefulWidget {
 
 class _OfflineIndicatorState extends State<OfflineIndicator> {
   bool _isOffline = false;
-  StreamSubscription<ConnectivityResult>? _sub;
+  StreamSubscription<List<ConnectivityResult>>? _sub;
 
   @override
   void initState() {
     super.initState();
     _loadInitialStatus();
-    _sub = Connectivity().onConnectivityChanged.listen((result) {
+    _sub = Connectivity().onConnectivityChanged.listen((results) {
       if (!mounted) return;
-      setState(() => _isOffline = result == ConnectivityResult.none);
+      setState(() => _isOffline = _isOfflineResult(results));
     });
   }
 
@@ -55,5 +55,10 @@ class _OfflineIndicatorState extends State<OfflineIndicator> {
         Expanded(child: widget.child),
       ],
     );
+  }
+
+  bool _isOfflineResult(List<ConnectivityResult> results) {
+    return results.isEmpty ||
+        results.every((result) => result == ConnectivityResult.none);
   }
 }

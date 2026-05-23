@@ -17,7 +17,7 @@ class AppConfig {
   // Groq Config (free tier - primary LLM)
   static const String groqApiKey = String.fromEnvironment(
     'GROQ_API_KEY',
-    defaultValue: 'gsk_placeholder',
+    defaultValue: '',
   );
   static const String groqModel = 'llama-3.3-70b-versatile';
 

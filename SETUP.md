@@ -1,379 +1,119 @@
-# MedTrace - Setup and Installation Guide
+# MedTrace - Setup Guide
 
-## 🚀 Quick Start (5 Minutes)
+This guide is intentionally conservative. MedTrace must be developed against real Supabase data and must not use fake clinical runtime data.
 
-This guide will help you get MedTrace running on your machine.
+## Prerequisites
 
-## ✅ Prerequisites
+- Flutter SDK 3.19 or newer.
+- Dart SDK included with Flutter.
+- Android Studio or Android command-line tools.
+- A Supabase project for development.
+- Git.
 
-### Required
-- **Flutter SDK** (3.19.0 or higher)
-  - Download from: https://flutter.dev/docs/get-started/install
-  - Run `flutter --version` to verify
-
-- **Dart SDK** (included with Flutter, 3.3.0+)
-  - Verify with: `dart --version`
-
-- **Supabase Account** (Free tier available)
-  - Sign up at: https://supabase.com
-  - Create a new project
-
-- **Git**
-  - For version control and cloning
-
-### Optional
-- **Android Studio** (for Android development)
-- **Xcode** (for iOS development on Mac)
-- **VS Code or Android Studio** (IDE)
-
-## 📥 Installation Steps
-
-### Step 1: Clone the Repository
-
-```bash
-git clone https://github.com/yourusername/medtrace.git
-cd medtrace
-```
-
-### Step 2: Get Flutter Packages
+## Install Dependencies
 
 ```bash
 flutter pub get
 ```
 
-This will download all dependencies listed in `pubspec.yaml` (50+ packages).
+If Flutter commands hang on Windows, see `TODO.md` Phase 0. The known recovery path is:
 
-### Step 3: Setup Supabase
-
-#### Create Supabase Project
-1. Go to https://supabase.com and sign in
-2. Click "New Project"
-3. Fill in project details:
-   - Name: `medtrace`
-   - Password: Create a secure password
-   - Region: Choose closest to your location
-4. Wait for project to initialize (2-3 minutes)
-
-#### Get Supabase Credentials
-1. Go to Project Settings → API
-2. Copy:
-   - **Project URL** → `SUPABASE_URL`
-   - **anon public** key → `SUPABASE_ANON_KEY`
-3. Keep these safe!
-
-#### Run Database Migrations
-```bash
-# Navigate to supabase directory
-cd supabase
-
-# Push migrations to your database
-supabase db push
-
-cd ..
-```
-
-This will create all 12 tables with proper RLS policies.
-
-### Step 4: Configure App Settings
-
-Update `lib/core/config/app_config.dart`:
-
-```dart
-class AppConfig {
-  // Supabase Configuration
-  static const String supabaseUrl = 'YOUR_SUPABASE_URL';
-  static const String supabaseAnonKey = 'YOUR_SUPABASE_ANON_KEY';
-  
-  // Other settings
-  static const int connectTimeout = 30000;
-  static const int receiveTimeout = 30000;
-  // ... rest of config
-}
-```
-
-### Step 5: Run the App
-
-#### On Android Emulator
-```bash
-# Start Android emulator first, then:
-flutter run
-```
-
-#### On iOS Simulator (Mac only)
-```bash
-flutter run -d "iPhone 15"
-```
-
-#### On Physical Device
-```bash
-# Connect device via USB, then:
-flutter run
-```
-
-#### On Web (Chrome)
-```bash
-flutter run -d chrome
-```
-
-## 🔐 Supabase Setup Details
-
-### Database Management
-
-The database comes pre-configured with:
-
-**12 Tables:**
-- `profiles` - User data
-- `doctor_codes` - Patient registration codes
-- `doctor_patients` - Doctor-patient relationships
-- `treatments` - TB treatment records
-- `medications` - Medication prescriptions
-- `medication_logs` - Adherence tracking
-- `reminders` - Appointment reminders
-- `patient_locations` - Geospatial data
-- `chatbot_conversations` - Chat history
-- `chatbot_messages` - Chat messages
-- `alerts` - Doctor alerts
-- `notifications` - Push notifications
-
-**Security:**
-- ✅ Row-Level Security (RLS) enabled on all tables
-- ✅ 40+ RLS policies for role-based access
-- ✅ Automated timestamp triggers
-
-### User Roles
-
-The system supports two roles:
-
-**Patient Role:**
-- Register via doctor code
-- Access own treatment data
-- Cannot see other patients' data
-
-**Doctor Role:**
-- Created by admin (via database)
-- Generate patient codes
-- View patient data
-- Create alerts
-
-### Creating Test Users
-
-#### Create Patient (via App)
-1. Open app
-2. Tap "Register as Patient"
-3. Enter personal info
-4. Create password
-5. Enter doctor code (see below)
-6. Submit
-
-#### Create Doctor Code
-```sql
--- Run in Supabase SQL Editor
-
-INSERT INTO public.doctor_codes (code, doctor_id, expires_at, max_uses, current_uses)
-VALUES ('ABC123', 'DOCTOR_UUID', NOW() + INTERVAL '30 days', 1, 0);
-```
-
-#### Create Doctor (Admin Only)
-```sql
--- 1. First create auth user in Supabase Auth
--- Copy the user UUID
-
--- 2. Then create profile
-INSERT INTO public.profiles (id, email, full_name, role, is_doctor)
-VALUES ('DOCTOR_UUID', 'doctor@example.com', 'Dr. John Doe', 'doctor', true);
-```
-
-## 🧪 Testing the App
-
-### Test Login Flow
-1. **Doctor Code:** `ABC123` (use one you created)
-2. **Patient Email:** Patient@example.com
-3. **Patient Password:** Test@1234
-4. **Doctor Email:** doctor@example.com
-5. **Doctor Password:** Doctor@1234
-
-### Key Features to Test
-
-#### Patient Features
-- ✅ Login/Registration
-- ✅ View Treatment Progress
-- ✅ Log Medications
-- ✅ Create Reminders
-- ✅ View Map
-- ✅ Message AI Assistant
-
-#### Doctor Features
-- ✅ Login
-- ✅ View Patient List
-- ✅ Monitor Adherence
-- ✅ Generate Patient Codes
-- ✅ View Alerts
-- ✅ Manage patients
-
-## 🛠️ Development Tools
-
-### Flutter Commands
-
-```bash
-# Clean build
-flutter clean
-
-# Get latest packages
+```powershell
+Get-Process dart,dartvm -ErrorAction SilentlyContinue | Stop-Process
+Remove-Item -Recurse -Force .dart_tool
 flutter pub get
+flutter analyze --no-pub
+```
 
-# Run with verbose logging
-flutter run -v
+If pub access is blocked by the sandbox or network policy, rerun with network access enabled.
 
-# Build APK (Android)
-flutter build apk
+## Supabase Configuration
 
-# Build AAB (Android - for Play Store)
-flutter build appbundle
+Current development values live in:
 
-# Build iOS
-flutter build ios
+```text
+lib/core/config/app_config.dart
+```
 
-# Format code
-dart format .
+Before Play Store release, move environment-specific values to `--dart-define` or CI/CD secrets. Never commit service role keys.
 
-# Analyze code
-flutter analyze
+## Database Setup
 
-# Run tests
+Do not blindly apply all migration files to production. The migration folder currently contains conflicting schema histories:
+
+- `supabase/migrations/20240101000000_init_schema.sql`
+- `supabase/migrations/20240101000001_rls_policies.sql`
+- `supabase/migrations/20260507000000_security_hardening.sql`
+- `supabase/migrations/001_init.sql`
+- `supabase/migrations/002_registration.sql`
+
+The old `001_init.sql` and `002_registration.sql` use a different patient schema than the current application code. Resolve Phase 1.2 in `TODO.md` before treating the database as production-ready.
+
+## Required Real Test Accounts
+
+Create real development accounts in Supabase:
+
+- One doctor user with `profiles.role = 'doctor'`.
+- One patient user registered through a valid `doctor_codes.code`.
+
+Do not document or ship shared fake credentials. Store any local-only credentials outside the repository.
+
+## Verification Commands
+
+```bash
+flutter analyze --no-pub
 flutter test
+flutter build apk --debug
 ```
 
-### Useful VS Code Extensions
-- Flutter
-- Dart
-- Pubspec Assist
-- Supabase
-- Material Icon Theme
+Current Phase 0 baseline:
+- Supabase REST endpoint responds with the development publishable anon key.
+- `flutter test` passes.
+- `flutter build apk --debug` succeeds.
+- `flutter analyze --no-pub` completes quickly, with lint/warning cleanup still pending.
 
-## 📱 Device Configuration
+Current known status is tracked in `TODO.md`.
 
-### Android Permissions
-Location: `android/app/src/main/AndroidManifest.xml`
+## Android Notes
 
-```xml
-<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-<uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+Permissions declared in `android/app/src/main/AndroidManifest.xml` include:
+
+- Internet.
+- Coarse/fine location.
+- Notifications.
+- Exact alarms.
+
+Play Store submission requires clear in-app rationale and Play Console disclosure for location and notifications.
+
+## Troubleshooting
+
+### Flutter or Dart hangs
+
+- Stop stale Dart/Dart VM processes.
+- Remove `.dart_tool`.
+- Check stale lock files under the Flutter SDK cache.
+- Disable analytics for command sessions if telemetry file access fails:
+
+```powershell
+$env:DART_SUPPRESS_ANALYTICS='true'
+$env:FLUTTER_SUPPRESS_ANALYTICS='true'
 ```
 
-### iOS Permissions
-Location: `ios/Runner/Info.plist`
+### Unable to connect to Supabase
 
-```xml
-<key>NSLocationWhenInUseUsageDescription</key>
-<string>MedTrace needs access to your location to map TB distribution</string>
-<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-<string>MedTrace needs access to your location</string>
-```
+- Check `AppConfig.supabaseUrl`.
+- Check `AppConfig.supabaseAnonKey`.
+- Confirm the Supabase project is not paused.
+- Verify RLS policies for the current role.
 
-## 🐛 Troubleshooting
+### Android build timeout
 
-### "Flutter command not found"
-```bash
-# Add Flutter to PATH
-export PATH="$PATH:YOUR_FLUTTER_PATH/bin"
+- Check Gradle/Java processes left from previous builds.
+- Stop Gradle daemons with `android\gradlew.bat --stop` when a previous build was interrupted.
+- Ensure network access for Gradle dependency resolution.
+- Re-run with more time after dependencies are cached.
+- Current Android baseline requires the compatibility flags documented in `android/gradle.properties`.
 
-# Verify
-flutter --version
-```
+## Next Steps
 
-### "Unable to connect to Supabase"
-1. Check `AppConfig` credentials
-2. Verify internet connection
-3. Check Supabase project status in dashboard
-4. Ensure project URL is correct (with https://)
-
-### "Gradle error on Android"
-```bash
-# Clean and rebuild
-flutter clean
-flutter pub get
-flutter run
-```
-
-### "Pod error on iOS"
-```bash
-# Clean pod cache
-cd ios
-rm -rf Pods
-rm Podfile.lock
-cd ..
-flutter run
-```
-
-### "Package version conflicts"
-```bash
-# Update pubspec.lock
-flutter pub upgrade
-```
-
-## 📊 Build Sizes
-
-- **Debug APK**: ~150 MB
-- **Release APK**: ~45-50 MB
-- **iOS**: ~120 MB (after optimization)
-
-## 🔗 Useful Resources
-
-- **Flutter Docs**: https://flutter.dev/docs
-- **Supabase Docs**: https://supabase.com/docs
-- **Riverpod Documentation**: https://riverpod.dev
-- **GoRouter Documentation**: https://go-router.dev
-
-## 📝 Common Tasks
-
-### Adding a New Package
-```bash
-flutter pub add package_name
-```
-
-### Removing a Package
-```bash
-flutter pub remove package_name
-```
-
-### Updating All Packages
-```bash
-flutter pub upgrade
-```
-
-### Getting Package Info
-```bash
-flutter pub outdated
-```
-
-## 🚀 Next Steps After Setup
-
-1. ✅ Verify app runs without errors
-2. ✅ Test login with test credentials
-3. ✅ Explore patient features
-4. ✅ Explore doctor features
-5. ✅ Check data in Supabase dashboard
-6. ✅ Review app logs in VS Code terminal
-
-## 💡 Tips
-
-1. **Hot Reload**: Press `r` in terminal to reload app (doesn't restart)
-2. **Hot Restart**: Press `R` in terminal to fully restart app
-3. **Dart DevTools**: Run `flutter pub global activate devtools` then `devtools`
-4. **Debug Logs**: Use `print()` or `Logger.log()` to debug
-
-## 📞 Support
-
-If you encounter issues:
-1. Check PROJECT_STATUS.md for known issues
-2. Review console output for error messages
-3. Check Supabase project logs
-4. Verify all credentials are correct
-5. Ensure all permissions are granted on device
-
----
-
-**Setup Time**: ~15-20 minutes  
-**Last Updated**: May 2024  
-**Status**: Ready to Deploy
+Follow [TODO.md](TODO.md), starting with Phase 1 after the Phase 0 baseline has been re-verified.

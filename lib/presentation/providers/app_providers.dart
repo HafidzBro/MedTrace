@@ -1,5 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart' hide Provider;
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:medtrace/services/supabase_service.dart';
 import 'package:medtrace/shared/theme/app_theme.dart';
 import 'package:medtrace/data/models/models.dart';

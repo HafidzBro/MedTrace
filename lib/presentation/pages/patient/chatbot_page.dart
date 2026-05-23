@@ -201,9 +201,11 @@ class _ChatbotPageState extends ConsumerState<ChatbotPage> {
                   : ListView.builder(
                       controller: _scrollController,
                       padding: const EdgeInsets.all(16),
-                      itemCount: messagesState.messages.length + (_isSending ? 1 : 0),
+                      itemCount:
+                          messagesState.messages.length + (_isSending ? 1 : 0),
                       itemBuilder: (context, index) {
-                        if (index == messagesState.messages.length && _isSending) {
+                        if (index == messagesState.messages.length &&
+                            _isSending) {
                           return _buildTypingIndicator();
                         }
                         final message = messagesState.messages[index];
@@ -467,7 +469,7 @@ class _ChatbotPageState extends ConsumerState<ChatbotPage> {
   }) async {
     // Use Groq API (free tier, llama model)
     final apiKey = AppConfig.groqApiKey;
-    if (apiKey.isEmpty || apiKey == 'gsk_placeholder') {
+    if (apiKey.isEmpty) {
       return _fallbackResponse(conversationMessages.lastOrNull?.message ?? '');
     }
 
@@ -483,8 +485,7 @@ class _ChatbotPageState extends ConsumerState<ChatbotPage> {
           'messages': [
             {
               'role': 'system',
-              'content':
-                  'Kamu adalah asisten kesehatan TB (Tuberkulosis) yang ramah dan informatif untuk aplikasi MedTrace. '
+              'content': 'Kamu adalah asisten kesehatan TB (Tuberkulosis) yang ramah dan informatif untuk aplikasi MedTrace. '
                   'Gunakan bahasa Indonesia yang sederhana dan mudah dipahami. '
                   'Berikan informasi berdasarkan panduan WHO tentang pengobatan TB. '
                   'Selalu tekankan pentingnya minum obat teratur. '
@@ -493,7 +494,8 @@ class _ChatbotPageState extends ConsumerState<ChatbotPage> {
                   'Jawab dengan singkat dan jelas (maksimal 3 paragraf).',
             },
             ...conversationMessages.take(20).map(
-                  (message) => {'role': message.role, 'content': message.message},
+                  (message) =>
+                      {'role': message.role, 'content': message.message},
                 ),
           ],
           'temperature': 0.3,
@@ -504,7 +506,8 @@ class _ChatbotPageState extends ConsumerState<ChatbotPage> {
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
         final choices = data['choices'] as List<dynamic>;
-        final content = (choices.first as Map<String, dynamic>)['message']['content'] as String?;
+        final content = (choices.first as Map<String, dynamic>)['message']
+            ['content'] as String?;
         return content?.trim().isNotEmpty == true
             ? content!
             : 'Maaf, saya belum bisa menjawab saat ini. Silakan coba lagi.';
@@ -531,8 +534,14 @@ class _ChatbotPageState extends ConsumerState<ChatbotPage> {
       body: jsonEncode({
         'model': 'gpt-4o-mini',
         'messages': [
-          {'role': 'system', 'content': 'Kamu asisten kesehatan TB. Jawab dalam bahasa Indonesia, singkat dan jelas.'},
-          ...messages.take(20).map((m) => {'role': m.role, 'content': m.message}),
+          {
+            'role': 'system',
+            'content':
+                'Kamu asisten kesehatan TB. Jawab dalam bahasa Indonesia, singkat dan jelas.'
+          },
+          ...messages
+              .take(20)
+              .map((m) => {'role': m.role, 'content': m.message}),
         ],
         'temperature': 0.3,
       }),

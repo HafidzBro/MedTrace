@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:medtrace/core/config/app_config.dart';
 import 'package:medtrace/presentation/pages/auth/login_page.dart';
 import 'package:medtrace/presentation/providers/app_providers.dart';
 import 'package:medtrace/services/supabase_service.dart';
@@ -31,8 +32,9 @@ class TestAuthNotifier extends AuthNotifier {
       : super(
           SupabaseService(
             client: SupabaseClient(
-              'https://example.supabase.co',
-              'test-anon-key',
+              AppConfig.supabaseUrl,
+              AppConfig.supabaseAnonKey,
+              authOptions: const AuthClientOptions(autoRefreshToken: false),
             ),
           ),
         );

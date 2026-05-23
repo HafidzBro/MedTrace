@@ -1,441 +1,206 @@
 # MedTrace Mobile - Agent Context
 
-Panduan operasional untuk AI agent yang bekerja pada project ini. Baca PROJECT_CONTEXT.md untuk arsitektur dan TODO.md untuk task list.
+Panduan kerja untuk AI agent atau developer yang mengerjakan repo MedTrace.
 
----
+Read order:
+1. `PROJECT_CONTEXT.md`
+2. `UI_CONTEXT.md`
+3. `TODO.md`
+4. Relevant source files
 
-## 1. Project Identity
+Last reviewed: 2026-05-24
 
-MedTrace adalah aplikasi mobile production-ready untuk monitoring pengobatan Tuberkulosis (TB). Aplikasi ini harus siap untuk Google Play Store dan Apple App Store submission.
+## 1. Mission
 
-Tujuan utama:
-- Track penyebaran TB secara geografis
-- Sentralisasi data pasien
-- Monitor adherence pengobatan
-- Cegah treatment dropout
-- Edukasi kesehatan publik via AI chatbot
+Bangun MedTrace sebagai aplikasi kesehatan TB yang aman, jelas, dan layak dirilis ke Google Play Store. Prioritasnya bukan hanya fitur terlihat selesai, tetapi fitur benar-benar memakai data Supabase, aman secara role/RLS, dan dapat diverifikasi lewat analyze/build/test.
 
----
+## 2. Non-Negotiable Rules
 
-## 2. Role System
+- Jangan gunakan mock/dummy/hardcoded runtime data untuk pasien, dokter, alert, adherence, lokasi, reminder, atau grafik.
+- Jika data belum tersedia, tampilkan loading, empty state, error state, retry, atau CTA untuk membuat data.
+- Jangan call Supabase langsung dari widget/page.
+- Gunakan alur Page -> Provider/Notifier -> Repository -> DataSource -> Supabase.
+- Jangan commit service role key, API key pribadi, atau credential produksi.
+- Jangan menganggap fitur selesai sampai ada verifikasi minimal: analyze/build atau alasan eksplisit kenapa belum bisa.
+- Jangan mengubah schema tanpa memperbarui migration, model, repository, RLS, dan TODO.
 
-Hanya ada DUA role dengan strict separation:
+## 3. Current Technical Reality
 
-DOCTOR:
-- Dibuat hanya oleh admin via database (tidak bisa self-register)
-- Memiliki akses ke data semua pasien yang terhubung
-- Dapat generate registration code untuk pasien baru
-- Menerima alert untuk non-adherence dan high-risk patients
+Repo sudah memiliki banyak struktur inti:
+- Supabase config and initialization.
+- Auth provider.
+- Domain entities and models.
+- Repositories and remote datasource.
+- Patient and doctor pages.
+- Feature providers for treatment, logs, reminders, chatbot, doctor patients, alerts, and locations.
+- Services for notification, cache, connectivity, offline queue, PDF.
+- UI reference assets under `assets/ui`.
 
-PATIENT:
-- Tidak bisa register tanpa doctor_code
-- Hanya bisa akses data sendiri
-- Tidak bisa melihat data pasien lain
-- Tidak bisa akses fitur doctor
+Known risks:
+- `flutter analyze` previously hung for more than 5 minutes because Dart analyzer processes were stuck. Current baseline completes in seconds.
+- `flutter build apk --debug` previously timed out; current baseline builds successfully after Android/Gradle/dependency fixes.
+- Supabase REST endpoint responds HTTP 200 for `profiles`, but auth/RLS/RPC/realtime still need real account testing.
+- Migration folder contains conflicting old migrations (`001_init.sql`, `002_registration.sql`) and newer timestamped migrations.
+- Chatbot has Groq primary and OpenAI fallback in code; documentation must not claim only OpenAI.
+- Some docs were over-optimistic and marked features complete before verification.
+- Android currently needs compatibility flags `android.builtInKotlin=false` and `android.newDsl=false` until all plugins support AGP 9 built-in Kotlin cleanly.
 
-Tidak ada overlap. Tidak ada role lain.
+## 4. Working With Data
 
----
+Data source policy:
+- Production UI reads from Supabase via repositories.
+- Offline data must be cached from real Supabase responses or queued user actions.
+- Tests may use controlled test doubles only for behavior isolation; feature acceptance and RLS/security checks must use real Supabase development accounts.
+- Empty states are acceptable and preferred over fake content.
 
-## 3. Technical Stack
+When implementing a screen:
+1. Identify the authenticated user and role.
+2. Find the provider/repository that owns the data.
+3. Add repository methods if the data is missing.
+4. Add RLS-compatible query patterns.
+5. Render loading, error, empty, and data states.
+6. Add refresh/retry behavior where useful.
 
-- Language: Dart 3.3+ / Flutter 3.19+
-- State Management: Riverpod (StateNotifier pattern, family providers)
-- Navigation: GoRouter with role-based redirect
-- Backend: Supabase (PostgreSQL + Auth + RLS + Realtime)
-- Architecture: Clean Architecture (domain, data, presentation)
-- Map: OpenStreetMap via flutter_map (no API key required)
-- AI: OpenAI Chat Completions API
-- Notifications: flutter_local_notifications
+## 5. Supabase Guidelines
 
----
+Use `AppConfig` for URL and anon key during development. For release, move environment values to `--dart-define` or CI/CD secrets.
 
-## 4. File Locations
+Required Supabase checks:
+- Anon key can reach REST API.
+- Patient can read/update only own data.
+- Doctor can read only assigned patients.
+- Patient cannot query other patients.
+- Patient cannot access doctor pages or doctor data.
+- Doctor code validation works.
+- `complete_patient_registration` RPC works with active code.
+- Realtime streams emit expected rows under RLS.
+- Adherence update and alert creation do not violate RLS.
 
-| Concern | Path |
-|---------|------|
-| Entry point | lib/main.dart |
-| Config | lib/core/config/app_config.dart |
-| Constants | lib/core/constants/app_constants.dart |
-| Exceptions | lib/core/error/exceptions.dart |
-| Failures | lib/core/error/failures.dart |
-| Extensions | lib/core/extensions/extensions.dart |
-| Entities | lib/domain/entities/entities.dart |
-| Models | lib/data/models/models.dart |
-| Repositories | lib/data/repositories/repositories.dart |
-| Remote DataSource | lib/data/datasources/remote/ |
-| Auth + DI providers | lib/presentation/providers/app_providers.dart |
-| Feature providers | lib/presentation/providers/feature_providers.dart |
-| Router | lib/presentation/router/app_router.dart |
-| Patient pages | lib/presentation/pages/patient/ |
-| Doctor pages | lib/presentation/pages/doctor/ |
-| Auth pages | lib/presentation/pages/auth/ |
-| Theme | lib/shared/theme/app_theme.dart |
-| Services | lib/services/ |
-| DB migrations | supabase/migrations/ |
+Migration rule:
+- Use one canonical schema path.
+- Do not apply both old `001/002` migrations and timestamped migrations to the same production database until conflicts are resolved.
+- Any table rename or relationship change must be reflected in models and queries.
 
----
+## 6. Implementation Patterns
 
-## 5. Implementation Patterns
-
-### Membuat Entity Baru
+Provider pattern:
 
 ```dart
-class MyEntity extends Equatable {
-  final String id;
-  final String name;
-  final DateTime createdAt;
-
-  const MyEntity({required this.id, required this.name, required this.createdAt});
-
-  MyEntity copyWith({String? id, String? name, DateTime? createdAt}) => MyEntity(
-    id: id ?? this.id,
-    name: name ?? this.name,
-    createdAt: createdAt ?? this.createdAt,
-  );
-
-  @override
-  List<Object?> get props => [id, name, createdAt];
-}
+final myRepositoryProvider = Provider<MyRepository>((ref) {
+  final dataSource = ref.watch(remoteDataSourceProvider);
+  return MyRepository(remoteDataSource: dataSource);
+});
 ```
 
-### Membuat Model (extends Entity)
+State pattern:
 
 ```dart
-class MyModel extends MyEntity {
-  const MyModel({required super.id, required super.name, required super.createdAt});
-
-  factory MyModel.fromJson(Map<String, dynamic> json) => MyModel(
-    id: json['id'] as String,
-    name: json['name'] as String,
-    createdAt: DateTime.parse(json['created_at'] as String),
-  );
-
-  Map<String, dynamic> toJson() => {
-    'id': id,
-    'name': name,
-    'created_at': createdAt.toIso8601String(),
-  };
-}
-```
-
-### Membuat StateNotifier Provider
-
-```dart
-class MyFeatureState {
-  final List<MyEntity> data;
+class MyState {
   final bool isLoading;
+  final List<MyModel> items;
   final String? error;
-  const MyFeatureState({this.data = const [], this.isLoading = false, this.error});
-  MyFeatureState copyWith({List<MyEntity>? data, bool? isLoading, String? error}) =>
-    MyFeatureState(
-      data: data ?? this.data,
+
+  const MyState({
+    this.isLoading = false,
+    this.items = const [],
+    this.error,
+  });
+
+  MyState copyWith({
+    bool? isLoading,
+    List<MyModel>? items,
+    String? error,
+  }) {
+    return MyState(
       isLoading: isLoading ?? this.isLoading,
+      items: items ?? this.items,
       error: error,
     );
-}
-
-class MyFeatureNotifier extends StateNotifier<MyFeatureState> {
-  final MyRepository _repository;
-  MyFeatureNotifier(this._repository) : super(const MyFeatureState());
-
-  Future<void> loadData(String userId) async {
-    state = state.copyWith(isLoading: true, error: null);
-    try {
-      final data = await _repository.getData(userId);
-      state = state.copyWith(data: data, isLoading: false);
-    } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
-    }
-  }
-}
-
-final myFeatureProvider = StateNotifierProvider.family<MyFeatureNotifier, MyFeatureState, String>(
-  (ref, userId) {
-    final repo = ref.watch(myRepositoryProvider);
-    return MyFeatureNotifier(repo)..loadData(userId);
-  },
-);
-```
-
-### Membuat Page
-
-```dart
-class MyPage extends ConsumerWidget {
-  const MyPage({super.key});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final userId = ref.watch(authProvider).user!.id;
-    final state = ref.watch(myFeatureProvider(userId));
-
-    if (state.isLoading) return const Center(child: CircularProgressIndicator());
-    if (state.error != null) return Center(child: Text(state.error!));
-
-    return Scaffold(
-      appBar: AppBar(title: const Text('My Page')),
-      body: ListView.builder(
-        itemCount: state.data.length,
-        itemBuilder: (context, index) => ListTile(title: Text(state.data[index].name)),
-      ),
-    );
   }
 }
 ```
 
-### Menambah Route
+Page rule:
+- Use `ref.watch` in build for state.
+- Use `ref.read` in callbacks.
+- Do not parse database JSON in UI.
+- Do not compute clinical truth in UI if repository/database should own it.
 
-Di lib/presentation/router/app_router.dart:
-```dart
-// 1. Tambah constant di AppRoutes
-static const String myPage = '/patient/my-page';
+## 7. UI Rules
 
-// 2. Tambah GoRoute di routes list
-GoRoute(
-  path: AppRoutes.myPage,
-  name: 'my_page',
-  builder: (context, state) => const MyPage(),
-),
+Use `UI_CONTEXT.md` and mockups in `assets/ui` as visual reference.
+
+Key assets:
+- `assets/ui/begin`: splash, login, register.
+- `assets/ui/doctor`: dashboard, patient list, patient detail, update status, reminder monitoring, alert center, map.
+- `assets/ui/patient`: registration steps, home, progress, adherence, reminder, chatbot, profile, success.
+- `assets/ui/app/App_Logo.svg`: logo reference.
+
+Implementation requirements:
+- Preserve MedTrace visual identity.
+- Keep doctor and patient information architecture distinct.
+- Add consistent bottom navigation.
+- Use real values from Supabase.
+- Use responsive constraints; avoid text overflow.
+- Add accessibility labels for critical actions.
+- Add medical disclaimer wherever AI health guidance appears.
+
+## 8. Store Readiness Rules
+
+Before Play Store release candidate:
+- No analyzer errors.
+- Release AAB builds.
+- App icon and splash are generated.
+- Android package id is final, not `com.example`.
+- Versioning is intentional.
+- Privacy policy exists.
+- Account deletion flow is available or clearly documented.
+- Permission rationale exists for location and notifications.
+- No debug banner, debug logs, or test credentials exposed.
+- Crash reporting/performance monitoring decision is made.
+- Screenshots come from implemented app.
+
+## 9. Git Workflow
+
+Use small, focused commits:
+
+```text
+docs: align MedTrace context with Play Store readiness
+fix: remove runtime sample data from doctor dashboard
+feat: wire patient profile to Supabase
+test: add auth provider state tests
 ```
 
-### Menambah Tabel Database
+Before commit:
+- Review `git status --short`.
+- Stage specific files only.
+- Do not revert user changes unless explicitly requested.
 
-```sql
-CREATE TABLE IF NOT EXISTS public.my_table (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  patient_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-  name TEXT NOT NULL,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
-ALTER TABLE public.my_table ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY my_table_patient_select ON public.my_table
-  FOR SELECT USING (auth.uid() = patient_id);
-
-CREATE POLICY my_table_patient_insert ON public.my_table
-  FOR INSERT WITH CHECK (auth.uid() = patient_id);
-```
-
----
-
-## 6. Supabase Access Pattern
-
-```dart
-// READ (list)
-final response = await supabaseClient
-    .from('table_name')
-    .select()
-    .eq('patient_id', patientId)
-    .order('created_at', ascending: false);
-
-// READ (single)
-final response = await supabaseClient
-    .from('table_name')
-    .select()
-    .eq('id', id)
-    .single();
-
-// CREATE
-await supabaseClient.from('table_name').insert({
-  'column': value,
-  'patient_id': patientId,
-});
-
-// UPDATE
-await supabaseClient.from('table_name')
-    .update({'column': newValue, 'updated_at': DateTime.now().toIso8601String()})
-    .eq('id', id);
-
-// DELETE
-await supabaseClient.from('table_name').delete().eq('id', id);
-
-// COUNT
-final count = await supabaseClient
-    .from('table_name')
-    .select()
-    .eq('patient_id', patientId)
-    .count(CountOption.exact);
-```
-
----
-
-## 7. Rules and Constraints
-
-1. Jangan hardcode Supabase credentials. Gunakan AppConfig.
-2. Jangan akses Supabase langsung dari Page. Selalu lewat Provider -> Repository -> DataSource.
-3. Semua state mutable harus di StateNotifier. Page hanya watch/read.
-4. Entity tidak boleh punya dependency ke framework. Pure Dart + Equatable only.
-5. Model harus extend Entity. Tambah fromJson/toJson.
-6. Error handling: throw custom Exception di datasource, catch di notifier, set error state.
-7. File naming: snake_case. Class naming: PascalCase. Variable naming: camelCase.
-8. Imports: relative imports untuk project files, package imports untuk dependencies.
-9. Gunakan const constructors di mana pun memungkinkan.
-10. Jangan tinggalkan print statements atau debug logs di production code.
-11. Handle semua edge cases: empty data, network failure, invalid input, timeout.
-12. DateTime dari Supabase selalu UTC. Convert ke local timezone saat display.
-
----
-
-## 8. Treatment Logic
-
-Phase:
-- intensive: bulan 0-2 (obat harian, monitoring ketat)
-- continuation: bulan 3-6 (obat berkala, monitoring berkurang)
-
-Status:
-- ongoing: treatment aktif
-- completed: treatment selesai dengan adherence >= 80%
-- defaulted: pasien berhenti treatment (missed > threshold)
-
-Adherence calculation:
-- adherence_percentage = (total_taken / total_scheduled) * 100
-- Update setiap kali medication_log dibuat
-- Alert jika < 60%
-- Alert jika missed 2+ hari berturut-turut
-
----
-
-## 9. AI Chatbot Specification
-
-System prompt:
-```
-You are a tuberculosis (TBC) health assistant for the MedTrace application.
-Your role is to provide accurate, clear, and supportive health information.
-
-Guidelines:
-1. Explain concepts in simple, easy-to-understand language
-2. Base medical information on WHO TB guidelines
-3. Be empathetic, calm, and helpful
-4. Do NOT provide diagnoses or prescribe medications
-5. For serious concerns, advise users to consult their healthcare provider
-6. Emphasize the importance of treatment adherence
-7. Provide educational content about TB transmission and prevention
-
-You are a support tool, not a replacement for professional medical advice.
-```
-
-Implementation:
-- Use OpenAI Chat Completions API
-- Send last 10 messages as context
-- Save all messages to chatbot_messages table
-- Handle rate limits and errors gracefully
-- Show typing indicator during API call
-
----
-
-## 10. Git Workflow
-
-### Commit Rules
-
-Lakukan git commit untuk setiap fitur atau perubahan yang selesai. Setiap commit harus atomic (satu concern per commit).
-
-Format commit message:
-```
-<type>: <description>
-
-<optional body>
-```
-
-Types:
-- feat: fitur baru
-- fix: bug fix
-- refactor: refactoring tanpa perubahan behavior
-- docs: perubahan dokumentasi
-- style: formatting, missing semicolons (bukan CSS)
-- test: menambah atau memperbaiki tests
-- chore: maintenance tasks (dependencies, config)
-
-Contoh:
-```
-feat: implement doctor alerts provider with Supabase integration
-
-- Create DoctorAlertsNotifier with load, markResolved methods
-- Wire alerts_page.dart to use real provider data
-- Add severity filtering logic
-```
-
-### Commit Frequency
-
-- Commit setelah setiap fitur/sub-fitur selesai dan berfungsi
-- Commit setelah bug fix yang verified
-- Commit setelah refactoring yang tidak break existing functionality
-- Jangan commit code yang tidak compile atau memiliki known errors
-
-### Push Rules
-
-- Push ke remote hanya saat semua perubahan sudah di-commit dan verified
-- Sebelum push, pastikan:
-  1. flutter analyze tidak ada error
-  2. flutter build apk --debug berhasil
-  3. Tidak ada conflict dengan remote branch
-- Jika ada conflict, resolve terlebih dahulu sebelum push
-- Gunakan `git push -u origin <branch>` untuk branch baru
-- Jangan force push ke main/master
-
-### Branch Strategy
-
-```
-main              <- production-ready code
-feature/<name>    <- fitur baru
-bugfix/<name>     <- bug fixes
-```
-
-### Workflow Per Task
-
-1. Pastikan di branch yang benar
-2. Implement perubahan
-3. Verify: flutter analyze + build
-4. Stage files: git add <specific files> (hindari git add .)
-5. Commit dengan message yang descriptive
-6. Jika semua task dalam satu session selesai dan aman: push
-
----
-
-## 11. Quality Checklist
-
-Sebelum menganggap sebuah fitur selesai:
-
-- [ ] Code compiles tanpa error (flutter analyze clean)
-- [ ] UI renders tanpa crash
-- [ ] Loading state ditampilkan saat fetch data
-- [ ] Error state ditampilkan dengan pesan yang jelas
-- [ ] Empty state ditampilkan saat data kosong
-- [ ] Semua button/action berfungsi
-- [ ] Navigation berfungsi (forward dan back)
-- [ ] Data persist ke database dengan benar
-- [ ] RLS policy tidak block akses yang legitimate
-- [ ] Tidak ada hardcoded values (gunakan constants)
-- [ ] Tidak ada print/debugPrint di production path
-
----
-
-## 12. Current Priority
-
-Urutan pengerjaan (lihat TODO.md untuk detail):
-
-1. Wire doctor providers ke backend (replace dummy data)
-2. Fix compilation errors dan verify build
-3. OpenAI chatbot integration
-4. Notification system (flutter_local_notifications)
-5. Supabase Realtime subscriptions
-6. Adherence calculation automation
-7. Offline support (Hive caching)
-8. Testing
-9. Store deployment preparation
-
----
-
-## 13. Commands Reference
+## 10. Verification Commands
 
 ```bash
-flutter pub get              # Install dependencies
-flutter analyze              # Static analysis
-flutter test                 # Run tests
-flutter build apk --debug    # Debug APK
-flutter build apk --release  # Release APK
-flutter run                  # Run on device
-flutter clean                # Clean build cache
-dart format lib/             # Format code
+flutter pub get
+flutter analyze --no-pub
+flutter test
+flutter build apk --debug
+flutter build appbundle --release
 ```
+
+Windows analyzer recovery:
+
+```powershell
+Get-Process dart,dartvm -ErrorAction SilentlyContinue | Stop-Process
+Remove-Item -Recurse -Force .dart_tool
+flutter pub get
+flutter analyze --no-pub
+```
+
+## 11. Current Priorities
+
+Follow `TODO.md`. Highest priorities:
+1. Clean Supabase migration history.
+2. Verify real doctor/patient auth and RLS.
+3. Remove or replace any runtime placeholder/fallback data found during feature work.
+4. Align UI implementation with `assets/ui`.
+5. Reduce analyzer lint/warning backlog.
+6. Finish Play Store readiness checklist.

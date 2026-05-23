@@ -1,3 +1,5 @@
+import com.android.build.gradle.BaseExtension
+
 allprojects {
     repositories {
         google()
@@ -17,6 +19,20 @@ subprojects {
 }
 subprojects {
     project.evaluationDependsOn(":app")
+}
+
+subprojects {
+    fun forceCompileSdk() {
+        extensions.findByType(BaseExtension::class.java)?.compileSdkVersion(36)
+    }
+
+    if (state.executed) {
+        forceCompileSdk()
+    } else {
+        afterEvaluate {
+            forceCompileSdk()
+        }
+    }
 }
 
 tasks.register<Delete>("clean") {

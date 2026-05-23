@@ -8,7 +8,7 @@ import 'package:medtrace/domain/entities/entities.dart';
 import 'package:medtrace/presentation/providers/app_providers.dart';
 import 'package:medtrace/services/connectivity_service.dart';
 import 'package:medtrace/services/notification_service.dart';
-import 'package:supabase_flutter/supabase_flutter.dart' hide Provider;
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 // ============================================================
 // DATASOURCE PROVIDERS
@@ -279,7 +279,8 @@ class MedicationLogsNotifier extends StateNotifier<MedicationLogsState> {
     required this.patientId,
   }) : super(MedicationLogsState()) {
     _subscribeRealtime();
-    _reconnectSubscription = ConnectivityService.instance.onReconnect.listen((_) {
+    _reconnectSubscription =
+        ConnectivityService.instance.onReconnect.listen((_) {
       _subscribeRealtime();
       loadMedicationLogs();
     });
@@ -378,7 +379,8 @@ class MedicationLogsNotifier extends StateNotifier<MedicationLogsState> {
 
   Future<void> _syncAdherence() async {
     try {
-      final treatment = await treatmentRepository.getPatientTreatment(patientId);
+      final treatment =
+          await treatmentRepository.getPatientTreatment(patientId);
       if (treatment != null) {
         await treatmentRepository.updateTreatment(
           treatmentId: treatment.id,
@@ -392,7 +394,8 @@ class MedicationLogsNotifier extends StateNotifier<MedicationLogsState> {
     try {
       // Alert if adherence drops below 60%
       if (state.adherencePercentage < 60 && state.logs.length >= 3) {
-        final treatment = await treatmentRepository.getPatientTreatment(patientId);
+        final treatment =
+            await treatmentRepository.getPatientTreatment(patientId);
         if (treatment == null) return;
 
         await alertRepository.createAlert(
@@ -400,7 +403,8 @@ class MedicationLogsNotifier extends StateNotifier<MedicationLogsState> {
           patientId: patientId,
           alertType: 'missed_medication',
           severity: state.adherencePercentage < 40 ? 'critical' : 'high',
-          title: 'Low adherence: ${state.adherencePercentage.toStringAsFixed(0)}%',
+          title:
+              'Low adherence: ${state.adherencePercentage.toStringAsFixed(0)}%',
           description:
               'Patient adherence has dropped to ${state.adherencePercentage.toStringAsFixed(1)}%.',
         );
@@ -417,7 +421,8 @@ class MedicationLogsNotifier extends StateNotifier<MedicationLogsState> {
         }
       }
       if (consecutiveMissed >= 2) {
-        final treatment = await treatmentRepository.getPatientTreatment(patientId);
+        final treatment =
+            await treatmentRepository.getPatientTreatment(patientId);
         if (treatment == null) return;
 
         await alertRepository.createAlert(
@@ -965,7 +970,8 @@ class DoctorAlertsNotifier extends StateNotifier<DoctorAlertsState> {
     required this.doctorId,
   }) : super(const DoctorAlertsState()) {
     _subscribeRealtime();
-    _reconnectSubscription = ConnectivityService.instance.onReconnect.listen((_) {
+    _reconnectSubscription =
+        ConnectivityService.instance.onReconnect.listen((_) {
       _subscribeRealtime();
       loadAlerts();
     });
@@ -1038,9 +1044,13 @@ class DoctorLocationsState {
   final List<PatientLocationModel> locations;
   final String? error;
 
-  const DoctorLocationsState({this.isLoading = false, this.locations = const [], this.error});
+  const DoctorLocationsState(
+      {this.isLoading = false, this.locations = const [], this.error});
 
-  DoctorLocationsState copyWith({bool? isLoading, List<PatientLocationModel>? locations, String? error}) =>
+  DoctorLocationsState copyWith(
+          {bool? isLoading,
+          List<PatientLocationModel>? locations,
+          String? error}) =>
       DoctorLocationsState(
         isLoading: isLoading ?? this.isLoading,
         locations: locations ?? this.locations,
@@ -1066,10 +1076,11 @@ class DoctorLocationsNotifier extends StateNotifier<DoctorLocationsState> {
   }
 }
 
-final doctorPatientLocationsProvider =
-    StateNotifierProvider.family<DoctorLocationsNotifier, DoctorLocationsState, String>((ref, doctorId) {
+final doctorPatientLocationsProvider = StateNotifierProvider.family<
+    DoctorLocationsNotifier, DoctorLocationsState, String>((ref, doctorId) {
   final repository = ref.watch(locationRepositoryProvider);
-  final notifier = DoctorLocationsNotifier(repository: repository, doctorId: doctorId);
+  final notifier =
+      DoctorLocationsNotifier(repository: repository, doctorId: doctorId);
   notifier.loadLocations();
   return notifier;
 });
