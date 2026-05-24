@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:medtrace/presentation/pages/auth/login_page.dart';
-import 'package:medtrace/presentation/pages/auth/patient_registration_page.dart';
+import 'package:medtrace/presentation/pages/auth/patient_registration/patient_registration_page.dart';
 import 'package:medtrace/presentation/pages/auth/register_entry_page.dart';
 import 'package:medtrace/presentation/pages/auth/splash_page.dart';
 import 'package:medtrace/presentation/pages/patient/patient_dashboard_page.dart';

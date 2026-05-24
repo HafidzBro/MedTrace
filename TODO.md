@@ -286,7 +286,8 @@ Do not commit these credentials. The test file does not create fake clinical dat
 - [x] Registration Step 1 UI.
 - [x] Registration Step 2 UI.
 - [x] Registration Step 3 UI.
-- [x] Registration confirmation success/verification screen.
+- [x] Registration success routes directly to patient dashboard when Supabase email verification is disabled.
+- [x] Registration Step 3 status selector and temporary scheduled-day reminder preference UI.
 - [ ] Dose success screen.
 - [ ] Patient home summary.
 - [ ] Therapy progress.

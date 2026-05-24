@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:medtrace/core/config/app_config.dart';
 import 'package:medtrace/presentation/pages/auth/login_page.dart';
-import 'package:medtrace/presentation/pages/auth/patient_registration_page.dart';
+import 'package:medtrace/presentation/pages/auth/patient_registration/patient_registration_page.dart';
 import 'package:medtrace/presentation/pages/auth/register_entry_page.dart';
 import 'package:medtrace/presentation/pages/auth/splash_page.dart';
 import 'package:medtrace/presentation/providers/app_providers.dart';

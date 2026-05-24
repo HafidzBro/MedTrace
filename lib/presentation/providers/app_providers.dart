@@ -116,7 +116,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         pendingVerificationEmail: null,
       );
 
-      final user = await supabaseService.registerPatient(
+      await supabaseService.registerPatient(
         email: normalizedEmail,
         password: password,
         doctorCode: normalizedDoctorCode,
@@ -127,9 +127,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
         address: address,
       );
 
+      await supabaseService.logout();
       state = state.copyWith(
-        isAuthenticated: true,
-        user: user,
+        isAuthenticated: false,
+        user: null,
         isLoading: false,
       );
       return true;
