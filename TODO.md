@@ -159,6 +159,8 @@ Phase 0 status:
 - [ ] Confirm Supabase Auth login works with a real doctor account.
 - [ ] Confirm Supabase Auth login works with a real patient account.
 - [ ] Confirm patient registration works with a real active doctor code.
+- [x] Supabase email confirmation flow shows verification guidance after sign-up without an active session.
+- [x] Pending patient registration metadata is stored securely and completed after verified login.
 - [x] Confirm `complete_patient_registration` RPC exists in the actual Supabase project.
 - [ ] Confirm Realtime is enabled for required tables.
 - [ ] Confirm storage buckets if avatars/documents will be used.
@@ -274,17 +276,19 @@ Do not commit these credentials. The test file does not create fake clinical dat
 
 ### 4.1 Begin/Auth
 
-- [ ] Splash screen matches `assets/ui/begin/Splash Screen.png`.
-- [ ] Register/welcome screen matches reference.
-- [ ] Login screen matches reference and uses real Supabase Auth.
+- [x] Splash screen matches `assets/ui/begin/Splash Screen.png`.
+- [x] Register/welcome screen matches reference.
+- [x] Login screen matches reference and uses real Supabase Auth.
 - [ ] App icon and splash assets are generated from final logo.
 
 ### 4.2 Patient screens
 
-- [ ] Registration Step 1 UI.
-- [ ] Registration Step 2 UI.
-- [ ] Registration Step 3 UI.
-- [ ] Registration/dose success screen.
+- [x] Registration Step 1 UI.
+- [x] Registration Step 2 UI.
+- [x] Registration Step 3 UI.
+- [x] Registration success routes directly to patient dashboard when Supabase email verification is disabled.
+- [x] Registration Step 3 status selector and temporary scheduled-day reminder preference UI.
+- [ ] Dose success screen.
 - [ ] Patient home summary.
 - [ ] Therapy progress.
 - [ ] Adherence history.

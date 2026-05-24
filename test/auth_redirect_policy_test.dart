@@ -12,6 +12,10 @@ void main() {
         isNull,
       );
       expect(
+        resolveAuthRedirect(path: AppRoutes.register, auth: auth),
+        isNull,
+      );
+      expect(
         resolveAuthRedirect(path: AppRoutes.patientRegister, auth: auth),
         isNull,
       );

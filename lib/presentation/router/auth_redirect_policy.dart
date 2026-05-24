@@ -15,7 +15,10 @@ String? resolveAuthRedirect({
   required AuthRedirectState auth,
 }) {
   if (!auth.isAuthenticated) {
-    if (path == AppRoutes.patientRegister || path == AppRoutes.login) {
+    if (path == AppRoutes.splash ||
+        path == AppRoutes.register ||
+        path == AppRoutes.patientRegister ||
+        path == AppRoutes.login) {
       return null;
     }
     return AppRoutes.login;
