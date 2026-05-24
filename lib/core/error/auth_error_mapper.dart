@@ -6,6 +6,10 @@ String mapAuthErrorMessage(Object error) {
     return 'Kode dokter tidak valid, sudah kedaluwarsa, atau sudah mencapai batas penggunaan.';
   }
 
+  if (error is EmailVerificationRequiredException) {
+    return 'Link verifikasi sudah dikirim ke ${error.email}. Silakan cek inbox email pasien sebelum login.';
+  }
+
   if (error is AuthenticationException) {
     return error.message;
   }

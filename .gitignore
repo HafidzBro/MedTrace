@@ -46,3 +46,5 @@ app.*.map.json
 
 # Admin credentials
 ADMIN_CREDENTIALS.md
+
+/test

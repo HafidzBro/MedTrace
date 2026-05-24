@@ -61,10 +61,10 @@ class SupabaseRemoteDataSource {
 
       final userId = authResponse.user!.id;
 
-      if (authResponse.session == null || client.auth.currentUser?.id != userId) {
-        throw AuthenticationException(
-          message:
-              'Registration created an auth user, but no active patient session was returned. Disable email confirmation in Supabase Auth for this flow, or complete patient registration after email verification.',
+      if (authResponse.session == null ||
+          client.auth.currentUser?.id != userId) {
+        throw EmailVerificationRequiredException(
+          email: email.trim().toLowerCase(),
         );
       }
 

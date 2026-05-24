@@ -18,6 +18,7 @@ class SupabaseService {
     required String password,
     required String doctorCode,
     required String fullName,
+    DateTime? dateOfBirth,
     String? phoneNumber,
     String? gender,
     String? address,
@@ -63,23 +64,52 @@ class SupabaseService {
 
       if (authResponse.session == null ||
           client.auth.currentUser?.id != userId) {
-        throw AuthenticationException(
-          message:
-              'Registration created an auth user, but no active patient session was returned. Disable email confirmation in Supabase Auth for this flow, or complete patient registration after email verification.',
+        throw EmailVerificationRequiredException(
+          email: email.trim().toLowerCase(),
         );
       }
 
+      return completePatientRegistrationAfterVerification(
+        userId: userId,
+        email: email,
+        fullName: fullName,
+        doctorCode: code.code,
+        dateOfBirth: dateOfBirth,
+        phoneNumber: phoneNumber,
+        gender: gender,
+        address: address,
+      );
+    } catch (e) {
+      logger.e('Patient registration error', error: e);
+      rethrow;
+    }
+  }
+
+  Future<UserModel> completePatientRegistrationAfterVerification({
+    required String userId,
+    required String email,
+    required String fullName,
+    required String doctorCode,
+    DateTime? dateOfBirth,
+    String? phoneNumber,
+    String? gender,
+    String? address,
+  }) async {
+    try {
       final profile = await client.rpc(
         'complete_patient_registration',
         params: {
           'p_user_id': userId,
           'p_email': email.trim().toLowerCase(),
           'p_full_name': fullName,
-          'p_doctor_code': code.code.toUpperCase(),
+          'p_doctor_code': doctorCode.toUpperCase(),
         },
       ).single();
 
       final profileUpdates = <String, dynamic>{};
+      if (dateOfBirth != null) {
+        profileUpdates['date_of_birth'] = _toDateOnly(dateOfBirth);
+      }
       if (phoneNumber?.trim().isNotEmpty == true) {
         profileUpdates['phone_number'] = phoneNumber!.trim();
       }
@@ -108,7 +138,19 @@ class SupabaseService {
       }
       return await getUser(userId);
     } catch (e) {
-      logger.e('Patient registration error', error: e);
+      logger.e('Complete patient registration error', error: e);
+      rethrow;
+    }
+  }
+
+  Future<void> resendPatientVerificationEmail(String email) async {
+    try {
+      await client.auth.resend(
+        type: OtpType.signup,
+        email: email.trim().toLowerCase(),
+      );
+    } catch (e) {
+      logger.e('Resend verification email error', error: e);
       rethrow;
     }
   }
@@ -377,8 +419,9 @@ class SupabaseService {
       final updateData = <String, dynamic>{};
       if (phase != null) updateData['phase'] = phase;
       if (status != null) updateData['status'] = status;
-      if (adherencePercentage != null)
+      if (adherencePercentage != null) {
         updateData['adherence_percentage'] = adherencePercentage;
+      }
       if (notes != null) updateData['notes'] = notes;
 
       final response = await client
@@ -403,5 +446,11 @@ class SupabaseService {
       code += chars[(random + i) % chars.length];
     }
     return code;
+  }
+
+  String _toDateOnly(DateTime date) {
+    final month = date.month.toString().padLeft(2, '0');
+    final day = date.day.toString().padLeft(2, '0');
+    return '${date.year}-$month-$day';
   }
 }

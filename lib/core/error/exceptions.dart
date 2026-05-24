@@ -21,6 +21,21 @@ class AuthenticationException extends AppException {
         );
 }
 
+class EmailVerificationRequiredException extends AuthenticationException {
+  final String email;
+
+  EmailVerificationRequiredException({
+    required this.email,
+    String? message,
+    dynamic originalException,
+  }) : super(
+          message: message ??
+              'A verification link has been sent. Please confirm the patient email before logging in.',
+          code: 'email_verification_required',
+          originalException: originalException,
+        );
+}
+
 class AuthorizationException extends AppException {
   AuthorizationException({
     required String message,
