@@ -1,7 +1,9 @@
 import 'package:logger/logger.dart';
 import 'package:medtrace/core/error/exceptions.dart';
+import 'package:medtrace/data/models/doctor_code_model.dart';
+import 'package:medtrace/data/models/profile_model.dart';
+import 'package:medtrace/data/models/therapy_model.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:medtrace/data/models/models.dart';
 
 class SupabaseService {
   final SupabaseClient client;

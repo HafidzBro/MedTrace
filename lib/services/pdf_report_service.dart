@@ -1,7 +1,10 @@
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
-import 'package:medtrace/data/models/models.dart';
+import 'package:medtrace/data/models/medication_log_model.dart';
+import 'package:medtrace/data/models/medication_model.dart';
+import 'package:medtrace/data/models/profile_model.dart';
+import 'package:medtrace/data/models/therapy_model.dart';
 
 class PdfReportService {
   static Future<void> generateTreatmentSummary({
@@ -20,7 +23,7 @@ class PdfReportService {
           pw.Header(level: 0, text: 'MedTrace - Treatment Summary'),
           pw.SizedBox(height: 16),
           _buildSection('Patient Information', [
-            'Name: ${patient.fullName ?? 'N/A'}',
+            'Name: ${patient.fullName.isEmpty ? 'N/A' : patient.fullName}',
             'Email: ${patient.email}',
             'Role: ${patient.role}',
           ]),
@@ -33,11 +36,15 @@ class PdfReportService {
             'Adherence: ${adherence.toStringAsFixed(1)}%',
           ]),
           pw.SizedBox(height: 16),
-          pw.Text('Medications', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+          pw.Text('Medications',
+              style:
+                  pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
           pw.SizedBox(height: 8),
-          pw.Table.fromTextArray(
+          pw.TableHelper.fromTextArray(
             headers: ['Name', 'Dosage', 'Frequency'],
-            data: medications.map((m) => [m.name, '${m.dosage} ${m.unit}', m.frequency]).toList(),
+            data: medications
+                .map((m) => [m.name, '${m.dosage} ${m.unit}', m.frequency])
+                .toList(),
           ),
           pw.SizedBox(height: 24),
           pw.Text(
@@ -67,7 +74,7 @@ class PdfReportService {
         pw.Header(level: 0, text: 'MedTrace - Adherence Report'),
         pw.SizedBox(height: 16),
         _buildSection('Patient', [
-          'Name: ${patient.fullName ?? 'N/A'}',
+          'Name: ${patient.fullName.isEmpty ? 'N/A' : patient.fullName}',
           'Email: ${patient.email}',
         ]),
         pw.SizedBox(height: 16),
@@ -79,15 +86,19 @@ class PdfReportService {
           'Pending: $pending',
         ]),
         pw.SizedBox(height: 16),
-        pw.Text('Daily Log', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+        pw.Text('Daily Log',
+            style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
         pw.SizedBox(height: 8),
-        pw.Table.fromTextArray(
+        pw.TableHelper.fromTextArray(
           headers: ['Date', 'Status', 'Notes'],
-          data: logs.take(50).map((l) => [
-            _formatDate(l.scheduledDate),
-            l.status.toUpperCase(),
-            l.notes ?? '-',
-          ]).toList(),
+          data: logs
+              .take(50)
+              .map((l) => [
+                    _formatDate(l.scheduledDate),
+                    l.status.toUpperCase(),
+                    l.notes ?? '-',
+                  ])
+              .toList(),
         ),
         pw.SizedBox(height: 24),
         pw.Text(
@@ -104,7 +115,8 @@ class PdfReportService {
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
-        pw.Text(title, style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+        pw.Text(title,
+            style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
         pw.SizedBox(height: 4),
         ...items.map((item) => pw.Padding(
               padding: const pw.EdgeInsets.only(bottom: 2),
@@ -114,5 +126,6 @@ class PdfReportService {
     );
   }
 
-  static String _formatDate(DateTime date) => '${date.day}/${date.month}/${date.year}';
+  static String _formatDate(DateTime date) =>
+      '${date.day}/${date.month}/${date.year}';
 }

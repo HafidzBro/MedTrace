@@ -1,7 +1,15 @@
 import 'package:logger/logger.dart';
 import 'package:medtrace/core/error/exceptions.dart';
-import 'package:medtrace/data/models/models.dart';
-import 'package:medtrace/domain/entities/entities.dart';
+import 'package:medtrace/data/models/alert_model.dart';
+import 'package:medtrace/data/models/chatbot_conversation_model.dart';
+import 'package:medtrace/data/models/chatbot_message_model.dart';
+import 'package:medtrace/data/models/doctor_code_model.dart';
+import 'package:medtrace/data/models/medication_log_model.dart';
+import 'package:medtrace/data/models/medication_model.dart';
+import 'package:medtrace/data/models/patient_location_model.dart';
+import 'package:medtrace/data/models/profile_model.dart';
+import 'package:medtrace/data/models/reminder_model.dart';
+import 'package:medtrace/data/models/therapy_model.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class SupabaseRemoteDataSource {
@@ -349,8 +357,9 @@ class SupabaseRemoteDataSource {
       final data = <String, dynamic>{};
       if (phase != null) data['phase'] = phase;
       if (status != null) data['status'] = status;
-      if (adherencePercentage != null)
+      if (adherencePercentage != null) {
         data['adherence_percentage'] = adherencePercentage;
+      }
       if (notes != null) data['notes'] = notes;
 
       final response = await client
@@ -613,9 +622,10 @@ class SupabaseRemoteDataSource {
       if (title != null) data['title'] = title;
       if (description != null) data['description'] = description;
       if (scheduledDate != null) data['scheduled_date'] = scheduledDate;
-      if (scheduledTime != null)
+      if (scheduledTime != null) {
         data['scheduled_time'] =
             '${scheduledTime.hour}:${scheduledTime.minute}';
+      }
 
       final response = await client
           .from('reminders')
@@ -736,7 +746,7 @@ class SupabaseRemoteDataSource {
           .select()
           .single();
 
-      final data = response as Map<String, dynamic>;
+      final data = response;
       return ChatbotConversation(
         id: data['id'] ?? '',
         patientId: data['patient_id'] ?? '',
