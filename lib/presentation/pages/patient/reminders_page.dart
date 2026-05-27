@@ -1,711 +1,287 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:medtrace/core/extensions/extensions.dart';
-import 'package:medtrace/domain/entities/entities.dart';
-import 'package:medtrace/presentation/providers/app_providers.dart';
-import 'package:medtrace/presentation/providers/feature_providers.dart';
-import 'package:medtrace/shared/theme/app_theme.dart';
+import 'package:go_router/go_router.dart';
+import 'package:medtrace/presentation/pages/patient/patient_mockup_widgets.dart';
+import 'package:medtrace/presentation/router/app_routes.dart';
 
-/// Patient reminders page
-/// Shows upcoming medication and appointment reminders
-class RemindersPage extends ConsumerStatefulWidget {
-  const RemindersPage({Key? key}) : super(key: key);
+class RemindersPage extends StatelessWidget {
+  const RemindersPage({super.key});
 
-  @override
-  ConsumerState<RemindersPage> createState() => _RemindersPageState();
-}
-
-class _RemindersPageState extends ConsumerState<RemindersPage> {
   @override
   Widget build(BuildContext context) {
-    final authState = ref.watch(authProvider);
-    final userId = authState.user?.id;
-
-    if (userId == null) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Reminders')),
-        body: const Center(child: Text('Not authenticated')),
-      );
-    }
-
-    final remindersState = ref.watch(patientRemindersProvider(userId));
-
-    return Scaffold(
+    return PatientMockScaffold(
+      currentIndex: 2,
+      backgroundColor: const Color(0xFFF0FBFA),
       appBar: AppBar(
-        title: const Text('My Reminders'),
+        backgroundColor: Colors.transparent,
         elevation: 0,
-        centerTitle: true,
-      ),
-      body: remindersState.isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : remindersState.reminders.isEmpty
-              ? _buildEmptyState(context, userId)
-              : _buildRemindersList(
-                  context, remindersState.reminders, ref, userId),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _showCreateReminderDialog(context, userId, ref),
-        backgroundColor: AppColors.patient,
-        child: const Icon(Icons.add),
-      ),
-    );
-  }
-
-  Widget _buildEmptyState(BuildContext context, String userId) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.alarm_off,
-            size: 64,
-            color: AppColors.textTertiary.withOpacity(0.5),
-          ),
-          const SizedBox(height: 20),
-          Text(
-            'No reminders yet',
-            style: AppTypography.headlineSmall.copyWith(
-              fontWeight: FontWeight.w600,
-              color: AppColors.textSecondary,
+        toolbarHeight: 76,
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 24, top: 8),
+            child: IconButton.filled(
+              onPressed: () => context.go(AppRoutes.patientDashboard),
+              icon: const Icon(Icons.close_rounded),
+              style: IconButton.styleFrom(
+                backgroundColor: const Color(0xFFE9EEEE),
+                foregroundColor: const Color(0xFF2B3335),
+              ),
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Create a reminder to stay on track',
-            style: AppTypography.bodyMedium.copyWith(
-              color: AppColors.textTertiary,
-            ),
-          ),
-          const SizedBox(height: 32),
-          ElevatedButton.icon(
-            onPressed: () => _showCreateReminderDialog(context, userId, ref),
-            icon: const Icon(Icons.add),
-            label: const Text('Create Reminder'),
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.patient),
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildRemindersList(
-    BuildContext context,
-    List<Reminder> reminders,
-    WidgetRef ref,
-    String userId,
-  ) {
-    // Separate upcoming and past reminders
-    final now = DateTime.now();
-    final upcoming =
-        reminders.where((r) => r.scheduledDate.isAfter(now)).toList();
-    final past = reminders.where((r) => r.scheduledDate.isBefore(now)).toList();
-
-    return RefreshIndicator(
-      onRefresh: () async {
-        ref.invalidate(patientRemindersProvider(userId));
-      },
-      child: SingleChildScrollView(
+      child: SafeArea(
+        top: false,
         child: Padding(
-          padding: const EdgeInsets.all(16.0),
+          padding: const EdgeInsets.fromLTRB(36, 74, 36, 104),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Upcoming reminders
-              if (upcoming.isNotEmpty) ...[
-                Text(
-                  'Upcoming',
-                  style: AppTypography.labelLarge.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.text,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                ListView.separated(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: upcoming.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 12),
-                  itemBuilder: (context, index) => _buildReminderCard(
-                    context,
-                    upcoming[index],
-                    ref,
-                    userId,
-                    isUpcoming: true,
-                  ),
-                ),
-                const SizedBox(height: 24),
-              ],
-
-              // Past reminders
-              if (past.isNotEmpty) ...[
-                Text(
-                  'History',
-                  style: AppTypography.labelLarge.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                ListView.separated(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: past.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 12),
-                  itemBuilder: (context, index) => _buildReminderCard(
-                    context,
-                    past[index],
-                    ref,
-                    userId,
-                    isUpcoming: false,
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildReminderCard(
-    BuildContext context,
-    Reminder reminder,
-    WidgetRef ref,
-    String userId, {
-    required bool isUpcoming,
-  }) {
-    final icon = _getReminderIcon(reminder.reminderType);
-    final isOverdue = !isUpcoming && !reminder.isSent;
-    final color = isOverdue
-        ? AppColors.error
-        : isUpcoming
-            ? AppColors.patient
-            : AppColors.textTertiary;
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isOverdue
-            ? AppColors.error.withOpacity(0.05)
-            : isUpcoming
-                ? AppColors.patient.withOpacity(0.05)
-                : AppColors.borderColor.withOpacity(0.5),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: isOverdue
-              ? AppColors.error.withOpacity(0.3)
-              : isUpcoming
-                  ? AppColors.patient.withOpacity(0.2)
-                  : AppColors.borderColor,
-        ),
-      ),
-      child: Row(
-        children: [
-          // Icon
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: color.withOpacity(0.2),
-            ),
-            child: Icon(icon, color: color, size: 24),
-          ),
-          const SizedBox(width: 16),
-
-          // Details
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        reminder.title,
-                        style: AppTypography.labelLarge.copyWith(
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.text,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
+              Container(
+                width: 78,
+                height: 78,
+                decoration: BoxDecoration(
+                  color: patientTeal2,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: patientTeal.withValues(alpha: 0.24),
+                      blurRadius: 20,
+                      offset: const Offset(0, 10),
                     ),
-                    if (isOverdue)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.error.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          'OVERDUE',
-                          style: AppTypography.caption.copyWith(
-                            color: AppColors.error,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 10,
-                          ),
-                        ),
-                      ),
-                    if (reminder.isSent && !isUpcoming)
-                      Icon(Icons.check_circle, color: AppColors.success, size: 18),
                   ],
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  '${reminder.reminderType.toString().split('.').last} • ${reminder.scheduledDate.formatReminderTime}',
-                  style: AppTypography.bodySmall.copyWith(
-                    color: AppColors.textSecondary,
+                child: const Icon(
+                  Icons.wb_sunny_outlined,
+                  color: Color(0xFFA9DAD8),
+                  size: 42,
+                ),
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                'Time for your morning\ndose',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: patientTeal,
+                  fontSize: 30,
+                  height: 1.25,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Stay on track with your treatment plan.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Color(0xFF50585C),
+                  fontSize: 16,
+                ),
+              ),
+              const SizedBox(height: 34),
+              PatientCard(
+                padding: const EdgeInsets.fromLTRB(24, 26, 24, 24),
+                color: Colors.white,
+                borderColor: const Color(0xFFD1F5EF),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 46,
+                          height: 46,
+                          decoration: BoxDecoration(
+                            color: patientMint,
+                            borderRadius: BorderRadius.circular(9),
+                          ),
+                          child: const Icon(
+                            Icons.medication_rounded,
+                            color: patientTeal,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Isoniazid & Rifampicin',
+                                style: TextStyle(
+                                  color: patientTeal,
+                                  fontSize: 19,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              SizedBox(height: 5),
+                              Text(
+                                '300mg + 600mg',
+                                style: TextStyle(
+                                  color: Color(0xFF50585C),
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 28),
+                    Container(height: 1, color: patientBorder),
+                    const SizedBox(height: 20),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF2F4F4),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(Icons.info_outline_rounded, color: patientTeal),
+                          SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Take with food, ideally with a glass of water.',
+                              style: TextStyle(
+                                color: patientText,
+                                fontSize: 15,
+                                height: 1.35,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Spacer(),
+              SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: ElevatedButton.icon(
+                  onPressed: () => _showDoseLogged(context),
+                  icon: const Icon(Icons.check_circle_outline_rounded),
+                  label: const Text('Confirm Intake'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: patientTeal,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    textStyle: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
-              ],
-            ),
-          ),
-
-          // Actions
-          PopupMenuButton(
-            itemBuilder: (context) => [
-              if (isOverdue)
-                PopupMenuItem(
-                  child: const Text('Mark Completed'),
-                  onTap: () => _markCompleted(context, reminder, userId, ref),
-                ),
-              PopupMenuItem(
-                child: const Text('Edit'),
-                onTap: () =>
-                    _showEditReminderDialog(context, reminder, userId, ref),
               ),
-              PopupMenuItem(
-                child: const Text(
-                  'Delete',
-                  style: TextStyle(color: AppColors.error),
-                ),
-                onTap: () => _deleteReminder(context, reminder, userId, ref),
-              ),
+              const SizedBox(height: 28),
             ],
           ),
-        ],
-      ),
-    );
-  }
-
-  void _markCompleted(
-    BuildContext context,
-    Reminder reminder,
-    String userId,
-    WidgetRef ref,
-  ) {
-    ref.read(patientRemindersProvider(userId).notifier).updateReminder(
-          reminderId: reminder.id,
-          title: reminder.title,
-          description: reminder.description,
-          scheduledDate: reminder.scheduledDate,
-          scheduledTime: reminder.scheduledTime,
-        );
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Reminder marked as completed')),
-    );
-  }
-
-  void _showCreateReminderDialog(
-    BuildContext context,
-    String userId,
-    WidgetRef ref,
-  ) {
-    String title = '';
-    String reminderType = 'medication';
-    DateTime selectedDate = DateTime.now().add(const Duration(days: 1));
-    TimeOfDay selectedTime = TimeOfDay.now();
-
-    showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
-          title: const Text('Create Reminder'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Title input
-                TextField(
-                  onChanged: (value) => title = value,
-                  decoration: InputDecoration(
-                    hintText: 'Reminder title',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                // Type dropdown
-                Text(
-                  'Type',
-                  style: AppTypography.labelSmall.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                DropdownButton<String>(
-                  value: reminderType,
-                  isExpanded: true,
-                  items: ['medication', 'appointment', 'checkup', 'custom']
-                      .map(
-                        (type) => DropdownMenuItem(
-                          value: type,
-                          child: Text(type.capitalize),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (value) {
-                    if (value != null) {
-                      setState(() => reminderType = value);
-                    }
-                  },
-                ),
-                const SizedBox(height: 16),
-
-                // Date picker
-                Text(
-                  'Date',
-                  style: AppTypography.labelSmall.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                GestureDetector(
-                  onTap: () async {
-                    final date = await showDatePicker(
-                      context: context,
-                      initialDate: selectedDate,
-                      firstDate: DateTime.now(),
-                      lastDate: DateTime.now().add(const Duration(days: 365)),
-                    );
-                    if (date != null) {
-                      setState(() => selectedDate = date);
-                    }
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: AppColors.borderColor),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          selectedDate.formatDateOnly,
-                          style: AppTypography.bodySmall,
-                        ),
-                        Icon(
-                          Icons.calendar_today,
-                          size: 16,
-                          color: AppColors.patient,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                // Time picker
-                Text(
-                  'Time',
-                  style: AppTypography.labelSmall.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                GestureDetector(
-                  onTap: () async {
-                    final time = await showTimePicker(
-                      context: context,
-                      initialTime: selectedTime,
-                    );
-                    if (time != null) {
-                      setState(() => selectedTime = time);
-                    }
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: AppColors.borderColor),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          selectedTime.format(context),
-                          style: AppTypography.bodySmall,
-                        ),
-                        Icon(
-                          Icons.access_time,
-                          size: 16,
-                          color: AppColors.patient,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: title.isNotEmpty
-                  ? () async {
-                      final scheduledTime = DateTime(
-                        selectedDate.year,
-                        selectedDate.month,
-                        selectedDate.day,
-                        selectedTime.hour,
-                        selectedTime.minute,
-                      );
-
-                      await ref
-                          .read(patientRemindersProvider(userId).notifier)
-                          .createReminder(
-                            title: title,
-                            reminderType: reminderType,
-                            scheduledDate: selectedDate,
-                            scheduledTime: scheduledTime,
-                          );
-
-                      if (!context.mounted) return;
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Reminder created'),
-                          duration: Duration(seconds: 2),
-                        ),
-                      );
-                    }
-                  : null,
-              child: const Text('Create'),
-            ),
-          ],
         ),
       ),
     );
   }
 
-  void _showEditReminderDialog(
-    BuildContext context,
-    Reminder reminder,
-    String userId,
-    WidgetRef ref,
-  ) {
-    final titleController = TextEditingController(text: reminder.title);
-    DateTime selectedDate = reminder.scheduledDate;
-    TimeOfDay selectedTime = TimeOfDay.fromDateTime(reminder.scheduledTime);
-
-    showDialog(
+  void _showDoseLogged(BuildContext context) {
+    showModalBottomSheet(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
-          title: const Text('Edit Reminder'),
-          content: SingleChildScrollView(
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 28, 20, 24),
             child: Column(
               mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                TextField(
-                  controller: titleController,
-                  decoration: InputDecoration(
-                    hintText: 'Reminder title',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
+                Container(
+                  width: 72,
+                  height: 72,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: patientBorder, width: 3),
+                    boxShadow: [
+                      BoxShadow(
+                        color: patientMint.withValues(alpha: 0.35),
+                        blurRadius: 24,
+                      ),
+                    ],
+                  ),
+                  child: const CircleAvatar(
+                    backgroundColor: Colors.black,
+                    child: Icon(Icons.check_rounded,
+                        color: Colors.white, size: 42),
                   ),
                 ),
-                const SizedBox(height: 16),
-                GestureDetector(
-                  onTap: () async {
-                    final date = await showDatePicker(
-                      context: context,
-                      initialDate: selectedDate,
-                      firstDate: DateTime.now().subtract(
-                        const Duration(days: 1),
-                      ),
-                      lastDate: DateTime.now().add(const Duration(days: 365)),
-                    );
-                    if (date != null) {
-                      setState(() => selectedDate = date);
-                    }
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: AppColors.borderColor),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          selectedDate.formatDateOnly,
-                          style: AppTypography.bodySmall,
+                const SizedBox(height: 18),
+                const Text(
+                  'Dose Logged!',
+                  style: TextStyle(fontSize: 16, color: patientText),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Great job staying on track. Your next dose is scheduled for tomorrow at 08:00 AM.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: patientText,
+                    height: 1.3,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: patientBorder),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Column(
+                    children: [
+                      Text(
+                        'INTAKE TIMESTAMP',
+                        style: TextStyle(
+                          color: patientText,
+                          fontSize: 16,
+                          letterSpacing: 1,
                         ),
-                        const Icon(Icons.calendar_today, size: 16),
-                      ],
-                    ),
+                      ),
+                      SizedBox(height: 6),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.access_time, size: 18),
+                          SizedBox(width: 8),
+                          Text('Today, 08:15 AM',
+                              style: TextStyle(fontSize: 16)),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(height: 12),
-                GestureDetector(
-                  onTap: () async {
-                    final time = await showTimePicker(
-                      context: context,
-                      initialTime: selectedTime,
-                    );
-                    if (time != null) {
-                      setState(() => selectedTime = time);
-                    }
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: AppColors.borderColor),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          selectedTime.format(context),
-                          style: AppTypography.bodySmall,
-                        ),
-                        const Icon(Icons.access_time, size: 16),
-                      ],
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: TextButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      context.go(AppRoutes.patientDashboard);
+                    },
+                    child: const Text(
+                      'Return to Home',
+                      style: TextStyle(color: patientText, fontSize: 16),
                     ),
                   ),
                 ),
               ],
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                final scheduledTime = DateTime(
-                  selectedDate.year,
-                  selectedDate.month,
-                  selectedDate.day,
-                  selectedTime.hour,
-                  selectedTime.minute,
-                );
-
-                await ref
-                    .read(patientRemindersProvider(userId).notifier)
-                    .updateReminder(
-                      reminderId: reminder.id,
-                      title: titleController.text.trim(),
-                      description: reminder.description,
-                      scheduledDate: selectedDate,
-                      scheduledTime: scheduledTime,
-                    );
-
-                if (!context.mounted) return;
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Reminder updated')),
-                );
-              },
-              child: const Text('Save'),
-            ),
-          ],
-        ),
-      ),
+        );
+      },
     );
   }
-
-  void _deleteReminder(
-    BuildContext context,
-    Reminder reminder,
-    String userId,
-    WidgetRef ref,
-  ) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Reminder?'),
-        content: const Text('This action cannot be undone.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              await ref
-                  .read(patientRemindersProvider(userId).notifier)
-                  .deleteReminder(reminder.id);
-
-              if (!context.mounted) return;
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Reminder deleted'),
-                  duration: Duration(seconds: 2),
-                ),
-              );
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  IconData _getReminderIcon(String reminderType) {
-    switch (reminderType.toLowerCase()) {
-      case 'medication':
-        return Icons.medication;
-      case 'appointment':
-        return Icons.calendar_today;
-      case 'checkup':
-        return Icons.local_hospital;
-      default:
-        return Icons.notifications;
-    }
-  }
-}
-
-extension _DateTimeFormatX on DateTime {
-  String get formatReminderTime {
-    if (isToday) {
-      return 'Today at ${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}';
-    } else if (isTomorrow) {
-      return 'Tomorrow at ${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}';
-    } else {
-      return '$day/$month/$year at ${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}';
-    }
-  }
-
-  String get formatDateOnly {
-    if (isToday) {
-      return 'Today';
-    } else if (isTomorrow) {
-      return 'Tomorrow';
-    } else {
-      return '$day/$month/$year';
-    }
-  }
-}
-
-extension _StringX on String {
-  String get capitalize => '${this[0].toUpperCase()}${substring(1)}';
 }

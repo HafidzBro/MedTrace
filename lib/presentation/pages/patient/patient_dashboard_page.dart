@@ -1,348 +1,150 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:medtrace/presentation/pages/patient/patient_mockup_widgets.dart';
 import 'package:medtrace/presentation/providers/app_providers.dart';
-import 'package:medtrace/presentation/providers/feature_providers.dart';
-import 'package:medtrace/presentation/router/app_router.dart';
-import 'package:medtrace/shared/theme/app_theme.dart';
+import 'package:medtrace/presentation/router/app_routes.dart';
 
-/// Patient main dashboard page
-/// Starting point for patient features with quick access to all tools
 class PatientDashboardPage extends ConsumerWidget {
   const PatientDashboardPage({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final authState = ref.watch(authProvider);
-    final user = authState.user;
-    final userName = user?.fullName ?? user?.email ?? 'Patient';
-    final userId = user?.id ?? '';
+    final user = ref.watch(authProvider).user;
+    final firstName = _firstName(user?.fullName ?? user?.email ?? 'Patient');
 
-    final logsState = ref.watch(patientMedicationLogsProvider(userId));
-    final hasMedicationLogs = logsState.logs.isNotEmpty;
-    final adherence = logsState.adherencePercentage;
-    final todayTaken = logsState.logs
-        .where((l) => l.isTaken && _isToday(l.scheduledDate))
-        .length;
-    final todayTotal =
-        logsState.logs.where((l) => _isToday(l.scheduledDate)).length;
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('MedTrace'),
-        elevation: 0,
-        centerTitle: false,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () => _showLogoutDialog(context, ref),
-          ),
-        ],
+    return PatientMockScaffold(
+      currentIndex: 0,
+      appBar: PatientTopBar(
+        title: 'Good Morning',
+        leadingIcon: Icons.person,
+        onLeadingTap: () => context.go(AppRoutes.patientProfile),
       ),
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Greeting card
-            Container(
-              margin: const EdgeInsets.all(16),
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    AppColors.patient,
-                    AppColors.patient.withOpacity(0.8),
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Welcome back!',
-                    style: AppTypography.bodySmall.copyWith(
-                      color: Colors.white70,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Hi $userName,',
-                    style: AppTypography.headlineSmall.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Stay consistent with your treatment. Together we\'ll beat TB!',
-                    style: AppTypography.bodySmall.copyWith(
-                      color: Colors.white.withOpacity(0.9),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // Quick stats
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Your Health Today',
-                    style: AppTypography.labelLarge.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildStatCard(
-                          icon: Icons.done_all,
-                          label: 'Adherence',
-                          value: hasMedicationLogs
-                              ? '${adherence.toStringAsFixed(0)}%'
-                              : '--',
-                          color: hasMedicationLogs
-                              ? adherence >= 80
-                                  ? AppColors.success
-                                  : adherence >= 60
-                                      ? AppColors.warning
-                                      : AppColors.error
-                              : AppColors.info,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _buildStatCard(
-                          icon: Icons.medication,
-                          label: 'Today',
-                          value:
-                              todayTotal > 0 ? '$todayTaken/$todayTotal' : '--',
-                          color: AppColors.patient,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-            if (!logsState.isLoading && !hasMedicationLogs)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: _buildEmptyClinicalDataCard(),
-              ),
-            if (!logsState.isLoading && !hasMedicationLogs)
-              const SizedBox(height: 24),
-
-            // Feature menu
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Features',
-                    style: AppTypography.labelLarge.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  _buildMenuGrid(context),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 32),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEmptyClinicalDataCard() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.info.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.info.withOpacity(0.2)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(Icons.info_outline, color: AppColors.info, size: 22),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              'No medication records are available yet. Your adherence summary will appear after real treatment data is recorded.',
-              style: AppTypography.bodySmall.copyWith(
-                color: AppColors.textSecondary,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatCard({
-    required IconData icon,
-    required String label,
-    required String value,
-    required Color color,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.2)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, color: color, size: 24),
-          const SizedBox(height: 8),
-          Text(
-            label,
-            style: AppTypography.caption.copyWith(
-              color: AppColors.textSecondary,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: AppTypography.headlineSmall.copyWith(
-              color: color,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMenuGrid(BuildContext context) {
-    final items = [
-      {
-        'icon': Icons.medical_information,
-        'label': 'My Treatment',
-        'description': 'Track progress',
-        'route': AppRoutes.treatment,
-      },
-      {
-        'icon': Icons.calendar_today,
-        'label': 'Medications',
-        'description': 'Daily schedule',
-        'route': AppRoutes.medicationSchedule,
-      },
-      {
-        'icon': Icons.map,
-        'label': 'TB Map',
-        'description': 'Distribution view',
-        'route': AppRoutes.tbMap,
-      },
-      {
-        'icon': Icons.psychology,
-        'label': 'AI Assistant',
-        'description': 'Health guidance',
-        'route': AppRoutes.chatbot,
-      },
-      {
-        'icon': Icons.notifications,
-        'label': 'Reminders',
-        'description': 'Stay on track',
-        'route': AppRoutes.reminders,
-      },
-    ];
-
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        childAspectRatio: 1.0,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-      ),
-      itemCount: items.length,
-      itemBuilder: (context, index) {
-        final item = items[index];
-        return _buildMenuItem(
-          context,
-          icon: item['icon'] as IconData,
-          label: item['label'] as String,
-          description: item['description'] as String,
-          route: item['route'] as String?,
-        );
-      },
-    );
-  }
-
-  Widget _buildMenuItem(
-    BuildContext context, {
-    required IconData icon,
-    required String label,
-    required String description,
-    required String? route,
-  }) {
-    return GestureDetector(
-      onTap: route != null ? () => context.go(route) : null,
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.borderColor),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 4,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
+      child: SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(36, 26, 36, 104),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: AppColors.patient.withOpacity(0.1),
+              Text(
+                'Hello, $firstName',
+                style: const TextStyle(
+                  color: patientText,
+                  fontSize: 31,
+                  fontWeight: FontWeight.w800,
+                  height: 1.1,
                 ),
-                child: Icon(icon, color: AppColors.patient, size: 24),
               ),
+              const SizedBox(height: 10),
+              const Text(
+                'Here is your treatment plan for today.',
+                style: TextStyle(
+                  color: patientMuted,
+                  fontSize: 16,
+                  height: 1.35,
+                ),
+              ),
+              const SizedBox(height: 34),
+              PatientCard(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 18, vertical: 20),
+                child: Column(
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(Icons.auto_graph_rounded, color: patientTeal),
+                        SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Therapy Progress',
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w700,
+                              color: patientText,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          'Month 2 of 6',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: patientTeal,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(999),
+                      child: const LinearProgressIndicator(
+                        value: 0.34,
+                        minHeight: 12,
+                        backgroundColor: patientNeutral,
+                        valueColor: AlwaysStoppedAnimation(patientTeal),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 32),
+              _MedicineCard(onLogDose: () => context.go(AppRoutes.reminders)),
+              const SizedBox(height: 32),
+              const SectionTitle('Weekly Adherence'),
               const SizedBox(height: 12),
-              Text(
-                label,
-                style: AppTypography.labelSmall.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.text,
+              const PatientCard(
+                padding: EdgeInsets.symmetric(horizontal: 18, vertical: 18),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    _DayDot(day: 'M', status: _DayStatus.done),
+                    _DayDot(day: 'T', status: _DayStatus.done),
+                    _DayDot(day: 'W', status: _DayStatus.current),
+                    _DayDot(day: 'T'),
+                    _DayDot(day: 'F'),
+                    _DayDot(day: 'S'),
+                    _DayDot(day: 'S'),
+                  ],
                 ),
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
               ),
-              const SizedBox(height: 4),
-              Text(
-                description,
-                style: AppTypography.caption.copyWith(
-                  color: AppColors.textTertiary,
+              const SizedBox(height: 32),
+              SizedBox(
+                width: 172,
+                child: PatientCard(
+                  padding: const EdgeInsets.all(16),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: () => context.go(AppRoutes.chatbot),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: const BoxDecoration(
+                            color: patientMintSoft,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.smart_toy_outlined,
+                            color: patientTeal,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        const Text(
+                          'Talk to\nMedTrace Bot',
+                          style: TextStyle(
+                            color: patientText,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            height: 1.25,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),
@@ -351,36 +153,139 @@ class PatientDashboardPage extends ConsumerWidget {
     );
   }
 
-  void _showLogoutDialog(BuildContext context, WidgetRef ref) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Logout?'),
-        content: const Text('Are you sure you want to logout?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+  static String _firstName(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) return 'Patient';
+    return trimmed.split(RegExp(r'\s+')).first;
+  }
+}
+
+class _MedicineCard extends StatelessWidget {
+  final VoidCallback onLogDose;
+
+  const _MedicineCard({required this.onLogDose});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: patientTeal2,
+        borderRadius: BorderRadius.circular(10),
+        boxShadow: [
+          BoxShadow(
+            color: patientTeal.withValues(alpha: 0.22),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
           ),
-          ElevatedButton(
-            onPressed: () async {
-              await ref.read(authProvider.notifier).logout();
-              if (!context.mounted) return;
-              Navigator.pop(context);
-              context.go(AppRoutes.login);
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
-            child: const Text('Logout'),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const PatientChip(
+                label: 'Today, 08:00 AM',
+                color: Colors.white,
+                textColor: patientTeal,
+              ),
+              const Spacer(),
+              Container(
+                width: 48,
+                height: 48,
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.medication_rounded, color: patientTeal),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Medicine',
+            style: TextStyle(
+              color: Color(0xFFA9DAD8),
+              fontSize: 21,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Take with food. Do not skip.',
+            style: TextStyle(color: Color(0xFFA9DAD8), fontSize: 14),
+          ),
+          const SizedBox(height: 18),
+          SizedBox(
+            width: double.infinity,
+            height: 44,
+            child: ElevatedButton.icon(
+              onPressed: onLogDose,
+              icon: const Icon(Icons.check_circle_outline_rounded, size: 22),
+              label: const Text('Log Dose'),
+              style: ElevatedButton.styleFrom(
+                elevation: 0,
+                backgroundColor: const Color(0xFF004D50),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(7),
+                ),
+                textStyle: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
           ),
         ],
       ),
     );
   }
+}
 
-  bool _isToday(DateTime date) {
-    final now = DateTime.now();
-    return date.year == now.year &&
-        date.month == now.month &&
-        date.day == now.day;
+enum _DayStatus { empty, done, current }
+
+class _DayDot extends StatelessWidget {
+  final String day;
+  final _DayStatus status;
+
+  const _DayDot({
+    required this.day,
+    this.status = _DayStatus.empty,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final filled = status == _DayStatus.done;
+    final current = status == _DayStatus.current;
+    return Column(
+      children: [
+        Text(day, style: const TextStyle(color: patientMuted, fontSize: 13)),
+        const SizedBox(height: 8),
+        Container(
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            color: filled ? patientMint : Colors.white,
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: current ? patientTeal : patientBorder,
+              width: current ? 2 : 1,
+            ),
+          ),
+          child: Icon(
+            filled
+                ? Icons.check_rounded
+                : current
+                    ? Icons.circle
+                    : null,
+            size: filled ? 18 : 10,
+            color: patientTeal,
+          ),
+        ),
+      ],
+    );
   }
 }

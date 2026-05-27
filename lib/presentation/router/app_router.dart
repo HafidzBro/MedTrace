@@ -11,6 +11,7 @@ import 'package:medtrace/presentation/pages/patient/medication_schedule_page.dar
 import 'package:medtrace/presentation/pages/patient/chatbot_page.dart';
 import 'package:medtrace/presentation/pages/patient/tb_map_page.dart';
 import 'package:medtrace/presentation/pages/patient/reminders_page.dart';
+import 'package:medtrace/presentation/pages/patient/patient_profile_page.dart';
 import 'package:medtrace/presentation/pages/doctor/doctor_dashboard_page.dart';
 import 'package:medtrace/presentation/pages/doctor/patient_management_page.dart';
 import 'package:medtrace/presentation/pages/doctor/alerts_page.dart';
@@ -101,6 +102,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.reminders,
         name: 'reminders',
         builder: (context, state) => const RemindersPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.patientProfile,
+        name: 'patient_profile',
+        builder: (context, state) => const PatientProfilePage(),
       ),
 
       // Doctor routes

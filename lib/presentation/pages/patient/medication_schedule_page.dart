@@ -1,591 +1,301 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:medtrace/core/extensions/extensions.dart';
-import 'package:medtrace/domain/entities/entities.dart';
-import 'package:medtrace/presentation/providers/app_providers.dart';
-import 'package:medtrace/presentation/providers/feature_providers.dart';
-import 'package:medtrace/shared/theme/app_theme.dart';
+import 'package:medtrace/presentation/pages/patient/patient_mockup_widgets.dart';
 
-/// Patient's daily medication schedule page
-/// Shows all medications for the day with adherence tracking
-class MedicationSchedulePage extends ConsumerStatefulWidget {
-  const MedicationSchedulePage({Key? key}) : super(key: key);
-
-  @override
-  ConsumerState<MedicationSchedulePage> createState() =>
-      _MedicationSchedulePageState();
-}
-
-class _MedicationSchedulePageState
-    extends ConsumerState<MedicationSchedulePage> {
-  late DateTime _selectedDate;
-
-  @override
-  void initState() {
-    super.initState();
-    _selectedDate = DateTime.now();
-  }
+class MedicationSchedulePage extends StatelessWidget {
+  const MedicationSchedulePage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final authState = ref.watch(authProvider);
-    final userId = authState.user?.id;
-
-    if (userId == null) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Medication Schedule')),
-        body: const Center(child: Text('Not authenticated')),
-      );
-    }
-
-    final medicationLogsState = ref.watch(
-      patientMedicationLogsProvider(userId),
-    );
-    final treatmentState = ref.watch(patientTreatmentProvider(userId));
-    final medicationsState = ref.watch(
-      treatmentMedicationsProvider(treatmentState.treatment?.id ?? ''),
-    );
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Medication Schedule'),
-        elevation: 0,
-        centerTitle: true,
+    return const PatientMockScaffold(
+      currentIndex: 1,
+      appBar: PatientTopBar(
+        title: 'My Adherence',
+        leadingIcon: Icons.person,
       ),
-      body: RefreshIndicator(
-        onRefresh: () async {
-          ref.invalidate(patientMedicationLogsProvider(userId));
-          ref.invalidate(patientTreatmentProvider(userId));
-        },
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Date selector
-                _buildDateSelector(context),
-                const SizedBox(height: 24),
-
-                // Adherence summary
-                _buildAdherenceSummary(medicationLogsState),
-                const SizedBox(height: 24),
-
-                // Medications list
-                _buildMedicationsList(
-                  context,
-                  medicationsState,
-                  medicationLogsState,
-                  ref,
-                  userId,
-                ),
-              ],
+      child: SingleChildScrollView(
+        padding: EdgeInsets.fromLTRB(28, 24, 28, 104),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _WeeklySummaryCard(),
+            SizedBox(height: 34),
+            SectionTitle('History Log'),
+            SizedBox(height: 14),
+            _HistoryTile(
+              icon: Icons.schedule_rounded,
+              iconBg: patientNeutral,
+              iconColor: Color(0xFF5F696C),
+              title: 'Today, Oct 21',
+              subtitle: 'Rifampin & Isoniazid',
+              chip: 'Pending',
+              chipBg: patientNeutral,
+              chipColor: Color(0xFF4F585B),
+              outlined: true,
             ),
-          ),
+            SizedBox(height: 12),
+            _HistoryTile(
+              title: 'Yesterday, Oct 20',
+              subtitle: 'Taken at 08:30 AM',
+              chip: 'Taken',
+            ),
+            SizedBox(height: 12),
+            _HistoryTile(
+              title: 'Thu, Oct 19',
+              subtitle: 'Taken at 09:15 AM',
+              chip: 'Taken',
+            ),
+            SizedBox(height: 12),
+            _HistoryTile(
+              icon: Icons.priority_high_rounded,
+              iconBg: patientDangerSoft,
+              iconColor: patientDanger,
+              title: 'Wed, Oct 18',
+              subtitle: 'Dose Missed',
+              subtitleColor: patientDanger,
+              chip: 'Missed',
+              chipBg: patientDangerSoft,
+              chipColor: patientDanger,
+            ),
+            SizedBox(height: 12),
+            _HistoryTile(
+              title: 'Tue, Oct 17',
+              subtitle: 'Taken at 08:00 AM',
+              chip: 'Taken',
+            ),
+          ],
         ),
       ),
     );
   }
+}
 
-  Widget _buildDateSelector(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: AppColors.patient.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+class _WeeklySummaryCard extends StatelessWidget {
+  const _WeeklySummaryCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return PatientCard(
+      padding: const EdgeInsets.fromLTRB(24, 26, 24, 26),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          IconButton(
-            icon: const Icon(Icons.arrow_back_ios),
-            onPressed: () {
-              setState(() {
-                _selectedDate = _selectedDate.subtract(const Duration(days: 1));
-              });
-            },
-          ),
-          GestureDetector(
-            onTap: () async {
-              final date = await showDatePicker(
-                context: context,
-                initialDate: _selectedDate,
-                firstDate: DateTime.now().subtract(const Duration(days: 30)),
-                lastDate: DateTime.now().add(const Duration(days: 30)),
-              );
-              if (date != null) {
-                setState(() {
-                  _selectedDate = date;
-                });
-              }
-            },
-            child: Column(
-              children: [
-                Text(
-                  _selectedDate.isToday
-                      ? 'Today'
-                      : _selectedDate.isTomorrow
-                          ? 'Tomorrow'
-                          : _selectedDate.isYesterday
-                              ? 'Yesterday'
-                              : '${_selectedDate.day} ${_getMonthName(_selectedDate.month)}',
-                  style: AppTypography.labelLarge.copyWith(
-                    color: AppColors.patient,
+          const Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Weekly Summary',
+                  style: TextStyle(
+                    color: patientText,
+                    fontSize: 18,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(_selectedDate.dayOfWeekName, style: AppTypography.caption),
-              ],
-            ),
+              ),
+              Text(
+                'Oct 16 - Oct 22',
+                style: TextStyle(color: patientMuted, fontSize: 16),
+              ),
+            ],
           ),
-          IconButton(
-            icon: const Icon(Icons.arrow_forward_ios),
-            onPressed: () {
-              setState(() {
-                _selectedDate = _selectedDate.add(const Duration(days: 1));
-              });
-            },
+          const SizedBox(height: 18),
+          const Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _WeekDay(label: 'Mon', status: _WeekStatus.done),
+              _WeekDay(label: 'Tue', status: _WeekStatus.done),
+              _WeekDay(label: 'Wed', status: _WeekStatus.missed),
+              _WeekDay(label: 'Thu', status: _WeekStatus.done),
+              _WeekDay(label: 'Fri', status: _WeekStatus.done),
+              _WeekDay(label: 'Sat', status: _WeekStatus.current),
+              _WeekDay(label: 'Sun', status: _WeekStatus.empty),
+            ],
+          ),
+          const SizedBox(height: 24),
+          Container(height: 1, color: patientBorder),
+          const SizedBox(height: 16),
+          const Text(
+            'Adherence Rate',
+            style: TextStyle(color: patientMuted, fontSize: 16),
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              const Text(
+                '80%',
+                style: TextStyle(
+                  color: patientTeal,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const Spacer(),
+              Container(
+                width: 128,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: patientNeutral,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                alignment: Alignment.centerLeft,
+                child: FractionallySizedBox(
+                  widthFactor: 0.8,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: patientTeal,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
     );
   }
+}
 
-  Widget _buildAdherenceSummary(MedicationLogsState state) {
-    final adherence = state.adherencePercentage;
-    final color = adherence > 80
-        ? AppColors.success
-        : adherence > 60
-            ? AppColors.warning
-            : AppColors.error;
+enum _WeekStatus { done, missed, current, empty }
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [color.withOpacity(0.1), color.withOpacity(0.05)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+class _WeekDay extends StatelessWidget {
+  final String label;
+  final _WeekStatus status;
+
+  const _WeekDay({required this.label, required this.status});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDone = status == _WeekStatus.done;
+    final isMissed = status == _WeekStatus.missed;
+    final isCurrent = status == _WeekStatus.current;
+    final isEmpty = status == _WeekStatus.empty;
+
+    return Column(
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            color: isCurrent ? patientTeal : patientMuted,
+            fontSize: 16,
+            fontWeight: isCurrent ? FontWeight.w700 : FontWeight.w400,
+          ),
         ),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.2)),
-      ),
+        const SizedBox(height: 8),
+        Container(
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            color: isDone
+                ? patientTeal2
+                : isMissed
+                    ? patientDangerSoft
+                    : isEmpty
+                        ? patientNeutral
+                        : Colors.white,
+            shape: BoxShape.circle,
+            border: isCurrent
+                ? Border.all(color: patientTeal, width: 2)
+                : Border.all(color: Colors.transparent),
+          ),
+          child: Icon(
+            isDone
+                ? Icons.check_rounded
+                : isMissed
+                    ? Icons.close_rounded
+                    : isCurrent
+                        ? Icons.more_horiz_rounded
+                        : Icons.remove_rounded,
+            size: 18,
+            color: isDone
+                ? Colors.white
+                : isMissed
+                    ? patientDanger
+                    : isCurrent
+                        ? patientTeal
+                        : const Color(0xFF9CA3A3),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _HistoryTile extends StatelessWidget {
+  final IconData icon;
+  final Color iconBg;
+  final Color iconColor;
+  final String title;
+  final String subtitle;
+  final Color subtitleColor;
+  final String chip;
+  final Color chipBg;
+  final Color chipColor;
+  final bool outlined;
+
+  const _HistoryTile({
+    this.icon = Icons.check_rounded,
+    this.iconBg = patientTeal2,
+    this.iconColor = Colors.white,
+    required this.title,
+    required this.subtitle,
+    this.subtitleColor = patientMuted,
+    required this.chip,
+    this.chipBg = patientTeal2,
+    this.chipColor = Colors.white,
+    this.outlined = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return PatientCard(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      borderColor: outlined ? const Color(0xFFB7C1C1) : Colors.white,
       child: Row(
         children: [
-          // Circular progress indicator
           Container(
-            width: 80,
-            height: 80,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: color.withOpacity(0.1),
-            ),
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                SizedBox(
-                  width: 80,
-                  height: 80,
-                  child: CircularProgressIndicator(
-                    value: adherence / 100,
-                    strokeWidth: 4,
-                    valueColor: AlwaysStoppedAnimation<Color>(color),
-                    backgroundColor: color.withOpacity(0.2),
-                  ),
-                ),
-                Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      '${adherence.toStringAsFixed(0)}%',
-                      style: AppTypography.headlineMedium.copyWith(
-                        color: color,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(color: iconBg, shape: BoxShape.circle),
+            child: Icon(icon, color: iconColor, size: 24),
           ),
-          const SizedBox(width: 20),
+          const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Adherence Rate',
-                  style: AppTypography.labelLarge.copyWith(
-                    color: AppColors.textSecondary,
+                  title,
+                  style: const TextStyle(
+                    color: patientText,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
-                const SizedBox(height: 8),
-                if (adherence > 80)
-                  Row(
-                    children: [
-                      Icon(Icons.check_circle, color: color, size: 16),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Great adherence! Keep it up',
-                          style: AppTypography.bodySmall,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  )
-                else if (adherence > 60)
-                  Row(
-                    children: [
-                      Icon(Icons.warning_rounded, color: color, size: 16),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Try to take all medications',
-                          style: AppTypography.bodySmall,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  )
-                else
-                  Row(
-                    children: [
-                      Icon(Icons.error_rounded, color: color, size: 16),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Take every medication on schedule',
-                          style: AppTypography.bodySmall,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  style: TextStyle(color: subtitleColor, fontSize: 16),
+                ),
               ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: BoxDecoration(
+              color: chipBg,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              chip,
+              style: TextStyle(
+                color: chipColor,
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
         ],
       ),
     );
-  }
-
-  Widget _buildMedicationsList(
-    BuildContext context,
-    MedicationsState medicationsState,
-    MedicationLogsState logsState,
-    WidgetRef ref,
-    String userId,
-  ) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Today\'s Medications',
-          style: AppTypography.headlineSmall.copyWith(
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        const SizedBox(height: 12),
-        if (medicationsState.isLoading)
-          const Center(child: CircularProgressIndicator())
-        else if (medicationsState.medications.isEmpty)
-          Center(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 32),
-              child: Column(
-                children: [
-                  Icon(
-                    Icons.check_circle,
-                    size: 48,
-                    color: AppColors.success.withOpacity(0.5),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'No medications today',
-                    style: AppTypography.bodyMedium.copyWith(
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          )
-        else
-          ListView.separated(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: medicationsState.medications.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 12),
-            itemBuilder: (context, index) {
-              final medication = medicationsState.medications[index];
-              return _buildMedicationCard(
-                context,
-                medication,
-                logsState,
-                ref,
-                userId,
-              );
-            },
-          ),
-      ],
-    );
-  }
-
-  Widget _buildMedicationCard(
-    BuildContext context,
-    Medication medication,
-    MedicationLogsState logsState,
-    WidgetRef ref,
-    String userId,
-  ) {
-    // Find log for this medication today
-    final todayLogs = logsState.logs.where(
-      (log) =>
-          log.medicationId == medication.id &&
-          log.scheduledDate.isSameDate(_selectedDate),
-    );
-    final todayLog = todayLogs.isEmpty ? null : todayLogs.first;
-
-    final isTaken = todayLog?.isTaken ?? false;
-    final isMissed = todayLog?.isMissed ?? false;
-
-    return GestureDetector(
-      onTap: () {
-        _showMedicationOptions(context, medication, todayLog, ref, userId);
-      },
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: isTaken
-              ? AppColors.success.withOpacity(0.1)
-              : isMissed
-                  ? AppColors.error.withOpacity(0.1)
-                  : Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isTaken
-                ? AppColors.success.withOpacity(0.3)
-                : isMissed
-                    ? AppColors.error.withOpacity(0.3)
-                    : AppColors.borderColor,
-          ),
-        ),
-        child: Row(
-          children: [
-            // Medication icon/checkbox
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: isTaken
-                    ? AppColors.success
-                    : isMissed
-                        ? AppColors.error
-                        : AppColors.patient.withOpacity(0.2),
-              ),
-              child: Icon(
-                isTaken
-                    ? Icons.check
-                    : isMissed
-                        ? Icons.close
-                        : Icons.medication,
-                color: isTaken || isMissed ? Colors.white : AppColors.patient,
-                size: 24,
-              ),
-            ),
-            const SizedBox(width: 16),
-
-            // Medication details
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    medication.name,
-                    style: AppTypography.labelLarge.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: isMissed ? AppColors.error : null,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${medication.dosage} ${medication.unit}',
-                    style: AppTypography.bodySmall.copyWith(
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    medication.frequency,
-                    style: AppTypography.caption.copyWith(
-                      color: AppColors.textTertiary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // Status badge
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: isTaken
-                    ? AppColors.success.withOpacity(0.2)
-                    : isMissed
-                        ? AppColors.error.withOpacity(0.2)
-                        : AppColors.warning.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                isTaken
-                    ? 'Taken'
-                    : isMissed
-                        ? 'Missed'
-                        : 'Pending',
-                style: AppTypography.labelSmall.copyWith(
-                  color: isTaken
-                      ? AppColors.success
-                      : isMissed
-                          ? AppColors.error
-                          : AppColors.warning,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showMedicationOptions(
-    BuildContext context,
-    Medication medication,
-    MedicationLog? log,
-    WidgetRef ref,
-    String userId,
-  ) {
-    showModalBottomSheet(
-      context: context,
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              medication.name,
-              style: AppTypography.headlineSmall.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 24),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                // Mark as taken
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () {
-                      ref
-                          .read(patientMedicationLogsProvider(userId).notifier)
-                          .markMedicationTaken(medication.id);
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Marked as taken'),
-                          duration: Duration(seconds: 2),
-                        ),
-                      );
-                    },
-                    icon: const Icon(Icons.check_circle),
-                    label: const Text('Taken'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.success,
-                      foregroundColor: Colors.white,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-
-                // Mark as missed
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () {
-                      ref
-                          .read(patientMedicationLogsProvider(userId).notifier)
-                          .markMedicationMissed(medication.id);
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Marked as missed'),
-                          duration: Duration(seconds: 2),
-                        ),
-                      );
-                    },
-                    icon: const Icon(Icons.close),
-                    label: const Text('Missed'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.error,
-                      side: const BorderSide(color: AppColors.error),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(context),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.borderColor,
-                foregroundColor: AppColors.text,
-              ),
-              child: const SizedBox(
-                width: double.infinity,
-                child: Center(child: Text('Cancel')),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  String _getMonthName(int month) {
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-    return months[month - 1];
-  }
-}
-
-extension _DateTimeX on DateTime {
-  String get dayOfWeekName {
-    const days = [
-      'Monday',
-      'Tuesday',
-      'Wednesday',
-      'Thursday',
-      'Friday',
-      'Saturday',
-      'Sunday',
-    ];
-    return days[weekday - 1];
   }
 }
