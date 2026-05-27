@@ -2,10 +2,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:medtrace/core/error/auth_error_mapper.dart';
 import 'package:medtrace/core/error/exceptions.dart';
+import 'package:medtrace/data/models/doctor_code_model.dart';
+import 'package:medtrace/data/models/profile_model.dart';
 import 'package:medtrace/services/pending_patient_registration_service.dart';
 import 'package:medtrace/services/supabase_service.dart';
 import 'package:medtrace/shared/theme/app_theme.dart';
-import 'package:medtrace/data/models/models.dart';
 
 // Supabase Client Provider
 final supabaseClientProvider = Provider<SupabaseClient>((ref) {

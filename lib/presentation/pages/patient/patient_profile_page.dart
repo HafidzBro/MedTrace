@@ -11,9 +11,9 @@ class PatientProfilePage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(authProvider).user;
-    final name = user?.fullName?.trim().isNotEmpty == true
-        ? user!.fullName!
-        : 'Sarah Jenkins';
+    final fullName = user?.fullName.trim();
+    final name =
+        fullName != null && fullName.isNotEmpty ? fullName : 'Sarah Jenkins';
     final email = user?.email ?? 'sarah.jenkins@example.com';
 
     return Scaffold(

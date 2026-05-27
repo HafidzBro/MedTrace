@@ -1,6 +1,14 @@
 import 'package:medtrace/data/datasources/remote/supabase_remote_datasource.dart';
-import 'package:medtrace/data/models/models.dart';
-import 'package:medtrace/domain/entities/entities.dart';
+import 'package:medtrace/data/models/alert_model.dart';
+import 'package:medtrace/data/models/chatbot_conversation_model.dart';
+import 'package:medtrace/data/models/chatbot_message_model.dart';
+import 'package:medtrace/data/models/doctor_code_model.dart';
+import 'package:medtrace/data/models/medication_log_model.dart';
+import 'package:medtrace/data/models/medication_model.dart';
+import 'package:medtrace/data/models/patient_location_model.dart';
+import 'package:medtrace/data/models/profile_model.dart';
+import 'package:medtrace/data/models/reminder_model.dart';
+import 'package:medtrace/data/models/therapy_model.dart';
 
 // Auth Repository
 class AuthRepository {

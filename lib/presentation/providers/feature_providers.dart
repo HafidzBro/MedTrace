@@ -2,9 +2,16 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:medtrace/data/datasources/remote/supabase_remote_datasource.dart';
-import 'package:medtrace/data/models/models.dart';
+import 'package:medtrace/data/models/alert_model.dart';
+import 'package:medtrace/data/models/chatbot_conversation_model.dart';
+import 'package:medtrace/data/models/chatbot_message_model.dart';
+import 'package:medtrace/data/models/medication_log_model.dart';
+import 'package:medtrace/data/models/medication_model.dart';
+import 'package:medtrace/data/models/patient_location_model.dart';
+import 'package:medtrace/data/models/profile_model.dart';
+import 'package:medtrace/data/models/reminder_model.dart';
+import 'package:medtrace/data/models/therapy_model.dart';
 import 'package:medtrace/data/repositories/repositories.dart';
-import 'package:medtrace/domain/entities/entities.dart';
 import 'package:medtrace/presentation/providers/app_providers.dart';
 import 'package:medtrace/services/connectivity_service.dart';
 import 'package:medtrace/services/notification_service.dart';
