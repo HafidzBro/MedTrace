@@ -10,13 +10,32 @@ import 'package:medtrace/data/models/patient_location_model.dart';
 import 'package:medtrace/data/models/profile_model.dart';
 import 'package:medtrace/data/models/reminder_model.dart';
 import 'package:medtrace/data/models/therapy_model.dart';
+import 'package:medtrace/services/supabase/auth_service.dart';
+import 'package:medtrace/services/supabase/doctor_code_service.dart';
+import 'package:medtrace/services/supabase/doctor_service.dart';
+import 'package:medtrace/services/supabase/profile_service.dart';
+import 'package:medtrace/services/supabase/supabase_service_context.dart';
+import 'package:medtrace/services/supabase/therapy_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class SupabaseRemoteDataSource {
   final SupabaseClient client;
   final Logger logger = Logger();
+  late final SupabaseServiceContext serviceContext;
+  late final ProfileService profiles;
+  late final DoctorService doctors;
+  late final DoctorCodeService doctorCodes;
+  late final AuthService auth;
+  late final TherapyService therapies;
 
-  SupabaseRemoteDataSource({required this.client});
+  SupabaseRemoteDataSource({required this.client}) {
+    serviceContext = SupabaseServiceContext(client: client, logger: logger);
+    profiles = ProfileService(serviceContext);
+    doctors = DoctorService(serviceContext, profiles);
+    doctorCodes = DoctorCodeService(serviceContext, doctors);
+    auth = AuthService(serviceContext, profiles, doctorCodes);
+    therapies = TherapyService(serviceContext, doctors);
+  }
 
   // ============================================================
   // AUTH METHODS
@@ -31,123 +50,31 @@ class SupabaseRemoteDataSource {
     required String password,
     required String doctorCode,
     required String fullName,
-  }) async {
-    try {
-      final normalizedDoctorCode = doctorCode.toUpperCase();
-
-      // Validate doctor code
-      final codeResponse = await client
-          .from('doctor_codes')
-          .select()
-          .eq('code', normalizedDoctorCode)
-          .maybeSingle();
-
-      if (codeResponse == null) {
-        throw InvalidDoctorCodeException(message: 'Invalid doctor code');
-      }
-
-      final code = DoctorCodeModel.fromJson(codeResponse);
-      if (!code.canBeUsed) {
-        throw InvalidDoctorCodeException(
-          message: 'Doctor code has expired or reached maximum uses',
-        );
-      }
-
-      if (client.auth.currentUser != null) {
-        await client.auth.signOut();
-      }
-
-      // Register user
-      final authResponse = await client.auth.signUp(
-        email: email.trim().toLowerCase(),
-        password: password,
-      );
-
-      if (authResponse.user == null) {
-        throw AuthenticationException(message: 'Registration failed');
-      }
-
-      final userId = authResponse.user!.id;
-
-      if (authResponse.session == null ||
-          client.auth.currentUser?.id != userId) {
-        throw EmailVerificationRequiredException(
-          email: email.trim().toLowerCase(),
-        );
-      }
-
-      final profile = await client.rpc(
-        'complete_patient_registration',
-        params: {
-          'p_user_id': userId,
-          'p_email': email.trim().toLowerCase(),
-          'p_full_name': fullName,
-          'p_doctor_code': code.code.toUpperCase(),
-        },
-      ).single();
-
-      return UserModel.fromJson(profile);
-    } on AppException {
-      rethrow;
-    } catch (e) {
-      logger.e('Registration error', error: e);
-      throw UnknownException(message: 'Registration failed: $e');
-    }
+  }) {
+    return auth.registerPatient(
+      email: email,
+      password: password,
+      doctorCode: doctorCode,
+      fullName: fullName,
+    );
   }
 
   Future<UserModel> login({
     required String email,
     required String password,
-  }) async {
-    try {
-      final response = await client.auth.signInWithPassword(
-        email: email,
-        password: password,
-      );
-
-      if (response.user == null) {
-        throw AuthenticationException(message: 'Invalid email or password');
-      }
-
-      return getUser(response.user!.id);
-    } catch (e) {
-      logger.e('Login error', error: e);
-      throw AuthenticationException(message: 'Login failed: $e');
-    }
+  }) {
+    return auth.loginUser(email: email, password: password);
   }
 
-  Future<void> logout() async {
-    try {
-      await client.auth.signOut();
-    } catch (e) {
-      logger.e('Logout error', error: e);
-      throw UnknownException(message: 'Logout failed');
-    }
-  }
+  Future<void> logout() => auth.logout();
 
-  Future<void> resetPassword(String email) async {
-    try {
-      await client.auth.resetPasswordForEmail(email);
-    } catch (e) {
-      logger.e('Password reset error', error: e);
-      throw UnknownException(message: 'Password reset failed');
-    }
-  }
+  Future<void> resetPassword(String email) => auth.resetPassword(email);
 
   // ============================================================
   // USER METHODS
   // ============================================================
 
-  Future<UserModel> getUser(String userId) async {
-    try {
-      final response =
-          await client.from('profiles').select().eq('id', userId).single();
-      return UserModel.fromJson(response);
-    } catch (e) {
-      logger.e('Get user error', error: e);
-      throw NotFoundException(message: 'User not found');
-    }
-  }
+  Future<UserModel> getUser(String userId) => profiles.getByAuthUserId(userId);
 
   Future<UserModel> updateProfile({
     required String userId,
@@ -158,75 +85,28 @@ class SupabaseRemoteDataSource {
     String? country,
     String? city,
     String? gender,
-  }) async {
-    try {
-      final data = <String, dynamic>{};
-      if (fullName != null) data['full_name'] = fullName;
-      if (phoneNumber != null) data['phone_number'] = phoneNumber;
-      if (avatarUrl != null) data['avatar_url'] = avatarUrl;
-      if (bio != null) data['bio'] = bio;
-      if (country != null) data['country'] = country;
-      if (city != null) data['city'] = city;
-      if (gender != null) data['gender'] = gender;
-
-      await client.from('profiles').update(data).eq('id', userId);
-      return getUser(userId);
-    } catch (e) {
-      logger.e('Update profile error', error: e);
-      throw DatabaseException(message: 'Failed to update profile');
-    }
+  }) {
+    return profiles.updateProfile(
+      userId: userId,
+      fullName: fullName,
+      phoneNumber: phoneNumber,
+      avatarUrl: avatarUrl,
+      bio: bio,
+      country: country,
+      city: city,
+      gender: gender,
+    );
   }
 
   // ============================================================
   // DOCTOR/PATIENT RELATIONSHIP
   // ============================================================
 
-  Future<List<UserModel>> getMyPatients(String doctorId) async {
-    try {
-      final response = await client
-          .from('doctor_patients')
-          .select('patient_id')
-          .eq('doctor_id', doctorId);
+  Future<List<UserModel>> getMyPatients(String doctorId) =>
+      doctors.getPatients(doctorId);
 
-      final patientIds =
-          (response as List).map((e) => e['patient_id'] as String).toList();
-
-      if (patientIds.isEmpty) return [];
-
-      final patients = await client
-          .from('profiles')
-          .select()
-          .filter('id', 'in', '(${patientIds.join(',')})');
-
-      return (patients as List).map((e) => UserModel.fromJson(e)).toList();
-    } catch (e) {
-      logger.e('Get my patients error', error: e);
-      return [];
-    }
-  }
-
-  Future<UserModel?> getMyDoctor(String patientId) async {
-    try {
-      final response = await client
-          .from('doctor_patients')
-          .select('doctor_id')
-          .eq('patient_id', patientId)
-          .maybeSingle();
-
-      if (response == null) return null;
-
-      final doctor = await client
-          .from('profiles')
-          .select()
-          .eq('id', response['doctor_id'])
-          .single();
-
-      return UserModel.fromJson(doctor);
-    } catch (e) {
-      logger.e('Get my doctor error', error: e);
-      return null;
-    }
-  }
+  Future<UserModel?> getMyDoctor(String patientId) =>
+      doctors.getDoctorForPatient(patientId);
 
   // ============================================================
   // DOCTOR CODE METHODS
@@ -236,47 +116,16 @@ class SupabaseRemoteDataSource {
     required String doctorId,
     int maxUses = 1,
     int expiryDays = 30,
-  }) async {
-    try {
-      final code = _generateRandomCode();
-      final expiresAt = DateTime.now().add(Duration(days: expiryDays));
-
-      await client.from('doctor_codes').insert({
-        'doctor_id': doctorId,
-        'code': code,
-        'max_uses': maxUses,
-        'expires_at': expiresAt.toIso8601String(),
-      });
-
-      return code;
-    } catch (e) {
-      logger.e('Generate doctor code error', error: e);
-      throw DatabaseException(message: 'Failed to generate doctor code');
-    }
+  }) {
+    return doctorCodes.generate(
+      doctorId: doctorId,
+      maxUses: maxUses,
+      expiryDays: expiryDays,
+    );
   }
 
-  Future<DoctorCodeModel> validateDoctorCode(String code) async {
-    try {
-      final response = await client
-          .from('doctor_codes')
-          .select()
-          .eq('code', code.toUpperCase())
-          .maybeSingle();
-
-      if (response == null) {
-        throw InvalidDoctorCodeException(
-          message: 'Invalid or expired doctor code',
-        );
-      }
-
-      return DoctorCodeModel.fromJson(response);
-    } catch (e) {
-      logger.e('Validate doctor code error', error: e);
-      throw InvalidDoctorCodeException(
-        message: 'Invalid or expired doctor code',
-      );
-    }
-  }
+  Future<DoctorCodeModel> validateDoctorCode(String code) =>
+      doctorCodes.validate(code);
 
   // ============================================================
   // TREATMENT METHODS
@@ -288,63 +137,23 @@ class SupabaseRemoteDataSource {
     required DateTime diagnosisDate,
     required DateTime startDate,
     String phase = 'intensive',
-  }) async {
-    try {
-      final response = await client
-          .from('treatments')
-          .insert({
-            'patient_id': patientId,
-            'doctor_id': doctorId,
-            'diagnosis_date': diagnosisDate.toIso8601String(),
-            'start_date': startDate.toIso8601String(),
-            'phase': phase,
-            'status': 'ongoing',
-            'adherence_percentage': 0.0,
-          })
-          .select()
-          .single();
-
-      return TreatmentModel.fromJson(response);
-    } catch (e) {
-      logger.e('Create treatment error', error: e);
-      throw DatabaseException(message: 'Failed to create treatment');
-    }
+  }) {
+    return therapies.createTreatment(
+      patientId: patientId,
+      doctorId: doctorId,
+      diagnosisDate: diagnosisDate,
+      startDate: startDate,
+      phase: phase,
+    );
   }
 
-  Future<TreatmentModel?> getPatientTreatment(String patientId) async {
-    try {
-      final response = await client
-          .from('treatments')
-          .select()
-          .eq('patient_id', patientId)
-          .eq('status', 'ongoing')
-          .order('created_at', ascending: false)
-          .maybeSingle();
-
-      if (response == null) return null;
-      return TreatmentModel.fromJson(response);
-    } catch (e) {
-      logger.e('Get patient treatment error', error: e);
-      return null;
-    }
-  }
+  Future<TreatmentModel?> getPatientTreatment(String patientId) =>
+      therapies.getPatientTreatment(patientId);
 
   Future<List<TreatmentModel>> getDoctorPatientsTreatments(
     String doctorId,
-  ) async {
-    try {
-      final response = await client
-          .from('treatments')
-          .select()
-          .eq('doctor_id', doctorId)
-          .order('created_at', ascending: false);
-
-      return (response as List).map((e) => TreatmentModel.fromJson(e)).toList();
-    } catch (e) {
-      logger.e('Get doctor patients treatments error', error: e);
-      return [];
-    }
-  }
+  ) =>
+      therapies.getDoctorPatientsTreatments(doctorId);
 
   Future<TreatmentModel> updateTreatment({
     required String treatmentId,
@@ -352,28 +161,14 @@ class SupabaseRemoteDataSource {
     String? status,
     double? adherencePercentage,
     String? notes,
-  }) async {
-    try {
-      final data = <String, dynamic>{};
-      if (phase != null) data['phase'] = phase;
-      if (status != null) data['status'] = status;
-      if (adherencePercentage != null) {
-        data['adherence_percentage'] = adherencePercentage;
-      }
-      if (notes != null) data['notes'] = notes;
-
-      final response = await client
-          .from('treatments')
-          .update(data)
-          .eq('id', treatmentId)
-          .select()
-          .single();
-
-      return TreatmentModel.fromJson(response);
-    } catch (e) {
-      logger.e('Update treatment error', error: e);
-      throw DatabaseException(message: 'Failed to update treatment');
-    }
+  }) {
+    return therapies.updateTreatment(
+      treatmentId: treatmentId,
+      phase: phase,
+      status: status,
+      adherencePercentage: adherencePercentage,
+      notes: notes,
+    );
   }
 
   // ============================================================
@@ -909,19 +704,5 @@ class SupabaseRemoteDataSource {
       logger.e('Update alert error', error: e);
       throw DatabaseException(message: 'Failed to update alert');
     }
-  }
-
-  // ============================================================
-  // UTILITY METHODS
-  // ============================================================
-
-  String _generateRandomCode() {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    final random = DateTime.now().microsecond;
-    String code = '';
-    for (var i = 0; i < 6; i++) {
-      code += chars[(random + i) % chars.length];
-    }
-    return code;
   }
 }
