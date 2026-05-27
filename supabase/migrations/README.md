@@ -13,6 +13,11 @@ for application tables in `public`. It drops the older app schema
 and related policies/functions) and recreates the schema from the current ERD.
 It does not drop or modify Supabase Auth tables such as `auth.users`.
 
+Development seed data is kept in `supabase/seed.sql`. Before running it, create
+or reuse two Supabase Auth users and edit the doctor/patient emails at the top
+of the seed file if needed. The seed links app rows to existing `auth.users`
+records and fills every current ERD table with a small doctor/patient scenario.
+
 Do not copy legacy migrations back into this directory without reconciling the
 schema with the Flutter app and RLS policies first. Supabase CLI applies every
 SQL file in this folder in sorted order, so conflicting schema histories can
