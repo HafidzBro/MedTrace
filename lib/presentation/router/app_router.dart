@@ -134,12 +134,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.alerts,
         name: 'alerts',
-        builder: (context, state) => const AlertsPage(),
+        builder: (context, state) => const AnalyticsPage(),
       ),
       GoRoute(
         path: AppRoutes.analytics,
         name: 'analytics',
-        builder: (context, state) => const AnalyticsPage(),
+        builder: (context, state) => const AlertsPage(),
       ),
       GoRoute(
         path: AppRoutes.doctorMap,
