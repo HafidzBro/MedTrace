@@ -5,6 +5,13 @@ Canonical development migration order:
 1. `20240101000000_init_schema.sql`
 2. `20240101000001_rls_policies.sql`
 3. `20260507000000_security_hardening.sql`
+4. `20260527000000_rebuild_medtrace_erd_schema.sql`
+
+`20260527000000_rebuild_medtrace_erd_schema.sql` is intentionally destructive
+for application tables in `public`. It drops the older app schema
+(`treatments`, `medications`, `doctor_patients`, legacy profile/patient shapes,
+and related policies/functions) and recreates the schema from the current ERD.
+It does not drop or modify Supabase Auth tables such as `auth.users`.
 
 Do not copy legacy migrations back into this directory without reconciling the
 schema with the Flutter app and RLS policies first. Supabase CLI applies every
