@@ -12,6 +12,7 @@ class AppRoutes {
   static const String chatbot = '/patient/chatbot';
   static const String tbMap = '/patient/map';
   static const String reminders = '/patient/reminders';
+  static const String patientProfile = '/patient/profile';
 
   // Doctor
   static const String doctorDashboard = '/doctor-dashboard';

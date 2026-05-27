@@ -283,18 +283,23 @@ Do not commit these credentials. The test file does not create fake clinical dat
 
 ### 4.2 Patient screens
 
+UI-first pass status:
+- Patient mockup implementation is now prioritized before Supabase binding by owner request.
+- Patient home, therapy progress, adherence history, medication reminder/dose success, chat conversation, and profile/settings have been rebuilt against `assets/ui/patient` visual references with temporary UI-state content.
+- Provider/Supabase binding, loading/empty/error data states, and real clinical values remain tracked under the quality requirements below.
+
 - [x] Registration Step 1 UI.
 - [x] Registration Step 2 UI.
 - [x] Registration Step 3 UI.
 - [x] Registration success routes directly to patient dashboard when Supabase email verification is disabled.
 - [x] Registration Step 3 status selector and temporary scheduled-day reminder preference UI.
-- [ ] Dose success screen.
-- [ ] Patient home summary.
-- [ ] Therapy progress.
-- [ ] Adherence history.
-- [ ] Medication reminder screen.
-- [ ] Chat conversation with disclaimer.
-- [ ] Patient profile/settings.
+- [x] Dose success screen.
+- [x] Patient home summary.
+- [x] Therapy progress.
+- [x] Adherence history.
+- [x] Medication reminder screen.
+- [x] Chat conversation with disclaimer.
+- [x] Patient profile/settings.
 
 Quality requirements:
 - [ ] All screens bind to real providers.
