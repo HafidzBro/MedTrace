@@ -1,242 +1,346 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
-import 'package:medtrace/data/models/models.dart';
-import 'package:medtrace/presentation/providers/app_providers.dart';
-import 'package:medtrace/presentation/providers/feature_providers.dart';
-import 'package:medtrace/shared/theme/app_theme.dart';
+import 'package:medtrace/presentation/pages/doctor/doctor_mockup_widgets.dart';
 
-class DoctorMapPage extends ConsumerStatefulWidget {
+class DoctorMapPage extends StatelessWidget {
   const DoctorMapPage({super.key});
 
   @override
-  ConsumerState<DoctorMapPage> createState() => _DoctorMapPageState();
-}
-
-class _DoctorMapPageState extends ConsumerState<DoctorMapPage> {
-  final MapController _mapController = MapController();
-  String _filterBy = 'all';
-
-  @override
   Widget build(BuildContext context) {
-    final userId = ref.watch(authProvider).user?.id;
-    if (userId == null) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Patient Map')),
-        body: const Center(child: Text('Not authenticated')),
-      );
-    }
-
-    final patientsState = ref.watch(doctorPatientsProvider(userId));
-    final locationsState = ref.watch(doctorPatientLocationsProvider(userId));
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Patient Map'),
-        centerTitle: true,
-        elevation: 0,
-      ),
-      body: Column(
+    return DoctorMockScaffold(
+      currentIndex: 2,
+      appBar: const DoctorTopBar(
+          title: 'MedTrace', leadingIcon: Icons.person_outline),
+      backgroundColor: const Color(0xFFB8BDBD),
+      extendBody: false,
+      child: Stack(
         children: [
-          // Filter chips
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: SizedBox(
-              height: 36,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
+          Positioned.fill(
+            child: CustomPaint(
+              painter: const _MapPatternPainter(),
+              child: Container(color: Colors.white.withValues(alpha: 0.1)),
+            ),
+          ),
+          const Positioned(
+            left: 36,
+            top: 24,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _MapFilter(
+                    icon: Icons.filter_alt_outlined, label: 'Therapy Status'),
+                SizedBox(height: 12),
+                _MapFilter(icon: Icons.location_on_outlined, label: 'Region'),
+              ],
+            ),
+          ),
+          Positioned(
+            right: 24,
+            top: 24,
+            child: Container(
+              width: 140,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.08),
+                    blurRadius: 12,
+                  ),
+                ],
+              ),
+              child: const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildChip('All', 'all'),
-                  const SizedBox(width: 8),
-                  _buildChip('Critical', 'critical'),
-                  const SizedBox(width: 8),
-                  _buildChip('At Risk', 'warning'),
-                  const SizedBox(width: 8),
-                  _buildChip('Good', 'good'),
+                  Text('LEGEND',
+                      style: TextStyle(color: doctorMuted, fontSize: 12)),
+                  SizedBox(height: 12),
+                  _LegendDot(color: doctorDanger, label: 'Defaulted'),
+                  SizedBox(height: 10),
+                  _LegendDot(color: doctorTeal2, label: 'Active'),
+                  SizedBox(height: 10),
+                  _LegendDot(color: doctorMint, label: 'Completed'),
                 ],
               ),
             ),
           ),
-          // Map
-          Expanded(
-            child: locationsState.isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : locationsState.locations.isEmpty
-                    ? _buildEmptyState()
-                    : FlutterMap(
-                        mapController: _mapController,
-                        options: MapOptions(
-                          initialCenter: _getCenter(locationsState.locations),
-                          initialZoom: 10,
+          const Positioned(
+              left: 180,
+              top: 260,
+              child: _MapCluster(count: '3', color: doctorDanger)),
+          const Positioned(
+              left: 110,
+              top: 390,
+              child: _MapCluster(count: '', color: doctorTeal2, small: true)),
+          const Positioned(
+              right: 118,
+              top: 440,
+              child: _MapCluster(count: '12', color: doctorTeal2)),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(36, 12, 36, 92),
+              decoration: const BoxDecoration(
+                color: doctorBg,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(10)),
+                border: Border(top: BorderSide(color: doctorBorder)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 48,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: doctorBorder,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+                  const Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Visible Cases Summary',
+                          style: TextStyle(
+                              color: doctorText,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800),
                         ),
-                        children: [
-                          TileLayer(
-                            urlTemplate:
-                                'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                            userAgentPackageName: 'com.medtrace.app',
-                          ),
-                          MarkerLayer(
-                            markers: _buildMarkers(
-                              locationsState.locations,
-                              patientsState,
-                            ),
-                          ),
-                        ],
                       ),
+                      Icon(Icons.keyboard_arrow_up_rounded, color: doctorTeal),
+                    ],
+                  ),
+                  const SizedBox(height: 28),
+                  const Row(
+                    children: [
+                      Expanded(
+                        child: _SummaryBox(value: '24', label: 'Total in View'),
+                      ),
+                      SizedBox(width: 16),
+                      Expanded(
+                        child: _SummaryBox(
+                          value: '3',
+                          label: 'High Risk',
+                          danger: true,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
           ),
         ],
       ),
     );
   }
+}
 
-  Widget _buildChip(String label, String value) {
-    final isSelected = _filterBy == value;
-    return FilterChip(
-      label: Text(label, style: TextStyle(fontSize: 12)),
-      selected: isSelected,
-      onSelected: (s) => setState(() => _filterBy = s ? value : 'all'),
-      visualDensity: VisualDensity.compact,
-    );
-  }
+class _MapFilter extends StatelessWidget {
+  final IconData icon;
+  final String label;
 
-  LatLng _getCenter(List<PatientLocationModel> locations) {
-    final lat = locations.map((l) => l.latitude).reduce((a, b) => a + b) /
-        locations.length;
-    final lng = locations.map((l) => l.longitude).reduce((a, b) => a + b) /
-        locations.length;
-    return LatLng(lat, lng);
-  }
+  const _MapFilter({required this.icon, required this.label});
 
-  Widget _buildEmptyState() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.location_off_outlined,
-              size: 64,
-              color: AppColors.textTertiary.withOpacity(0.5),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              'No patient locations yet',
-              style: AppTypography.headlineSmall.copyWith(
-                fontWeight: FontWeight.w600,
-                color: AppColors.textSecondary,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'The map will appear after assigned patients share real location records.',
-              style: AppTypography.bodyMedium.copyWith(
-                color: AppColors.textTertiary,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(999),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 10,
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 18, color: doctorTeal),
+          const SizedBox(width: 8),
+          Text(label,
+              style: const TextStyle(
+                  color: doctorText,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600)),
+          const Icon(Icons.keyboard_arrow_down_rounded, color: doctorMuted),
+        ],
       ),
     );
   }
+}
 
-  List<Marker> _buildMarkers(
-    List<PatientLocationModel> locations,
-    DoctorPatientsState patientsState,
-  ) {
-    final patientAdherence = <String, double>{};
-    final patientsWithTreatment = <String>{};
-    for (final p in patientsState.patients) {
-      patientAdherence[p.patient.id] = p.adherencePercentage;
-      if (p.hasTreatment) {
-        patientsWithTreatment.add(p.patient.id);
+class _LegendDot extends StatelessWidget {
+  final Color color;
+  final String label;
+
+  const _LegendDot({required this.color, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+            width: 12,
+            height: 12,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+        const SizedBox(width: 8),
+        Text(label, style: const TextStyle(color: doctorText, fontSize: 13)),
+      ],
+    );
+  }
+}
+
+class _MapCluster extends StatelessWidget {
+  final String count;
+  final Color color;
+  final bool small;
+
+  const _MapCluster({
+    required this.count,
+    required this.color,
+    this.small = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final size = small ? 30.0 : 48.0;
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: color,
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white, width: 3),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.18), blurRadius: 8),
+        ],
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        count,
+        style: const TextStyle(
+            color: Colors.white, fontSize: 14, fontWeight: FontWeight.w800),
+      ),
+    );
+  }
+}
+
+class _SummaryBox extends StatelessWidget {
+  final String value;
+  final String label;
+  final bool danger;
+
+  const _SummaryBox({
+    required this.value,
+    required this.label,
+    this.danger = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 86,
+      decoration: BoxDecoration(
+        color: danger ? doctorDangerSoft : Colors.white,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+            color: danger ? const Color(0xFFFF9D9D) : const Color(0xFFB7C3C3)),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            value,
+            style: TextStyle(
+              color: danger ? doctorDanger : doctorTeal,
+              fontSize: 30,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            style: TextStyle(
+              color: danger ? doctorDanger : doctorText,
+              fontSize: 13,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MapPatternPainter extends CustomPainter {
+  const _MapPatternPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final bg = Paint()..color = const Color(0xFFB6BBBB);
+    canvas.drawRect(Offset.zero & size, bg);
+
+    final road = Paint()
+      ..color = Colors.white.withValues(alpha: 0.23)
+      ..strokeWidth = 4
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+    final minor = Paint()
+      ..color = Colors.white.withValues(alpha: 0.14)
+      ..strokeWidth = 1.4
+      ..style = PaintingStyle.stroke;
+
+    void drawPath(List<Offset> points, Paint paint) {
+      final path = Path()..moveTo(points.first.dx, points.first.dy);
+      for (final p in points.skip(1)) {
+        path.lineTo(p.dx, p.dy);
       }
+      canvas.drawPath(path, paint);
     }
 
-    return locations.where((loc) {
-      final hasTreatment = patientsWithTreatment.contains(loc.patientId);
-      final adherence = patientAdherence[loc.patientId] ?? 0;
-      return switch (_filterBy) {
-        'critical' => hasTreatment && adherence < 60,
-        'warning' => hasTreatment && adherence >= 60 && adherence < 80,
-        'good' => hasTreatment && adherence >= 80,
-        _ => true,
-      };
-    }).map((loc) {
-      final hasTreatment = patientsWithTreatment.contains(loc.patientId);
-      final adherence = patientAdherence[loc.patientId] ?? 0;
-      final color = !hasTreatment
-          ? AppColors.info
-          : adherence >= 80
-              ? AppColors.success
-              : adherence >= 60
-                  ? AppColors.warning
-                  : AppColors.error;
+    drawPath([
+      Offset(0, size.height * 0.18),
+      Offset(size.width * 0.32, size.height * 0.32),
+      Offset(size.width * 0.55, size.height * 0.55),
+      Offset(size.width, size.height * 0.72),
+    ], road);
+    drawPath([
+      Offset(size.width * 0.85, 0),
+      Offset(size.width * 0.64, size.height * 0.24),
+      Offset(size.width * 0.48, size.height * 0.5),
+      Offset(size.width * 0.28, size.height),
+    ], road);
+    drawPath([
+      Offset(0, size.height * 0.62),
+      Offset(size.width * 0.34, size.height * 0.48),
+      Offset(size.width * 0.72, size.height * 0.28),
+      Offset(size.width, size.height * 0.2),
+    ], road);
 
-      return Marker(
-        point: LatLng(loc.latitude, loc.longitude),
-        width: 36,
-        height: 36,
-        child: GestureDetector(
-          onTap: () => _showPatientInfo(
-            loc,
-            hasTreatment ? adherence : null,
-          ),
-          child: Container(
-            decoration: BoxDecoration(
-              color: color,
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white, width: 2),
-              boxShadow: [
-                BoxShadow(color: color.withOpacity(0.4), blurRadius: 6),
-              ],
-            ),
-            child: const Icon(Icons.person, color: Colors.white, size: 18),
-          ),
-        ),
-      );
-    }).toList();
+    for (var i = 0; i < 16; i++) {
+      final y = size.height * (0.1 + i * 0.045);
+      drawPath([
+        Offset(size.width * 0.05, y),
+        Offset(size.width * 0.35, y + 24),
+        Offset(size.width * 0.75, y - 8),
+      ], minor);
+    }
+    for (var i = 0; i < 10; i++) {
+      final x = size.width * (0.05 + i * 0.1);
+      drawPath([
+        Offset(x, 0),
+        Offset(x + 38, size.height * 0.45),
+        Offset(x - 18, size.height),
+      ], minor);
+    }
   }
 
-  void _showPatientInfo(PatientLocationModel loc, double? adherence) {
-    showModalBottomSheet(
-      context: context,
-      builder: (context) => Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Patient Location',
-              style: AppTypography.labelLarge.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Lat: ${loc.latitude.toStringAsFixed(6)}',
-              style: AppTypography.bodySmall,
-            ),
-            Text(
-              'Lng: ${loc.longitude.toStringAsFixed(6)}',
-              style: AppTypography.bodySmall,
-            ),
-            Text(
-              adherence == null
-                  ? 'Adherence: No treatment data'
-                  : 'Adherence: ${adherence.toStringAsFixed(0)}%',
-              style: AppTypography.bodySmall,
-            ),
-            Text(
-              'Recorded: ${loc.recordedAt.day}/${loc.recordedAt.month}/${loc.recordedAt.year}',
-              style: AppTypography.bodySmall,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  @override
+  bool shouldRepaint(covariant _MapPatternPainter oldDelegate) => false;
 }

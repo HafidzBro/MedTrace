@@ -1,574 +1,320 @@
-import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:medtrace/core/extensions/extensions.dart';
-import 'package:medtrace/presentation/providers/app_providers.dart';
-import 'package:medtrace/presentation/providers/feature_providers.dart';
-import 'package:medtrace/presentation/router/app_router.dart';
-import 'package:medtrace/presentation/widgets/shimmer_loading.dart';
-import 'package:medtrace/shared/theme/app_theme.dart';
+import 'package:medtrace/presentation/pages/doctor/doctor_mockup_widgets.dart';
+import 'package:medtrace/presentation/router/app_routes.dart';
 
-/// Doctor's patient management page
-/// Shows list of patients under doctor's care with treatment status
-class PatientManagementPage extends ConsumerStatefulWidget {
-  const PatientManagementPage({Key? key}) : super(key: key);
-
-  @override
-  ConsumerState<PatientManagementPage> createState() =>
-      _PatientManagementPageState();
-}
-
-class _PatientManagementPageState extends ConsumerState<PatientManagementPage> {
-  TextEditingController _searchController = TextEditingController();
-  String _filterBy = 'all'; // all, good, warning, critical
-
-  @override
-  void initState() {
-    super.initState();
-    _searchController = TextEditingController();
-  }
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
+class PatientManagementPage extends StatelessWidget {
+  const PatientManagementPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final authState = ref.watch(authProvider);
-    final userId = authState.user?.id;
-
-    if (userId == null) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Patient Management')),
-        body: const Center(child: Text('Not authenticated')),
-      );
-    }
-
-    final patientsState = ref.watch(doctorPatientsProvider(userId));
-    final patients = patientsState.patients.where((overview) {
-      final query = _searchController.text.trim().toLowerCase();
-      final fullName = overview.patient.fullName ?? '';
-      final matchesSearch = query.isEmpty ||
-          fullName.toLowerCase().contains(query) ||
-          overview.patient.email.toLowerCase().contains(query);
-
-      final matchesFilter = switch (_filterBy) {
-        'good' => overview.hasTreatment && overview.adherencePercentage >= 80,
-        'warning' => overview.hasTreatment &&
-            overview.adherencePercentage >= 60 &&
-            overview.adherencePercentage < 80,
-        'critical' =>
-          overview.hasTreatment && overview.adherencePercentage < 60,
-        _ => true,
-      };
-
-      return matchesSearch && matchesFilter;
-    }).toList();
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('My Patients'),
-        elevation: 0,
-        centerTitle: true,
-      ),
-      body: Column(
-        children: [
-          // Search and filter
+    return DoctorMockScaffold(
+      currentIndex: 1,
+      appBar: const DoctorTopBar(
+        title: 'MedTrace',
+        actions: [
           Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
+            padding: EdgeInsets.only(right: 8),
+            child: DoctorAvatar(
+                icon: Icons.person, radius: 18, color: Color(0xFF2F3D4A)),
+          ),
+          SizedBox(width: 4),
+          Icon(Icons.notifications_none_rounded, color: doctorTeal),
+          SizedBox(width: 18),
+        ],
+      ),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(28, 18, 28, 104),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Patient Directory',
+              style: TextStyle(
+                color: doctorText,
+                fontSize: 28,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Manage and monitor active therapy regimens.',
+              style: TextStyle(color: doctorMuted, fontSize: 15),
+            ),
+            const SizedBox(height: 34),
+            Row(
               children: [
-                // Search
-                TextField(
-                  controller: _searchController,
-                  onChanged: (value) => setState(() {}),
-                  decoration: InputDecoration(
-                    hintText: 'Search patients...',
-                    prefixIcon: const Icon(Icons.search),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(24),
-                      borderSide: const BorderSide(
-                        color: AppColors.borderColor,
-                      ),
+                Expanded(
+                  child: Container(
+                    height: 46,
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      border: Border.all(color: const Color(0xFFB7C3C3)),
+                      borderRadius: BorderRadius.circular(7),
                     ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
+                    child: const Row(
+                      children: [
+                        Icon(Icons.search_rounded, color: Color(0xFF657174)),
+                        SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Search by name, ID, or phone...',
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                                color: Color(0xFF7B8588), fontSize: 14),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
-                const SizedBox(height: 12),
-
-                // Filter chips
-                SizedBox(
-                  height: 40,
-                  child: ListView(
-                    scrollDirection: Axis.horizontal,
-                    children: [
-                      _buildFilterChip('All', 'all'),
-                      const SizedBox(width: 8),
-                      _buildFilterChip('Good Adherence', 'good'),
-                      const SizedBox(width: 8),
-                      _buildFilterChip('At Risk', 'warning'),
-                      const SizedBox(width: 8),
-                      _buildFilterChip('Critical', 'critical'),
-                    ],
+                const SizedBox(width: 12),
+                Container(
+                  width: 60,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    border: Border.all(color: const Color(0xFFB7C3C3)),
+                    borderRadius: BorderRadius.circular(7),
                   ),
+                  child:
+                      const Icon(Icons.filter_list_rounded, color: doctorText),
                 ),
               ],
             ),
-          ),
-
-          // Patient list
-          Expanded(
-            child: patientsState.isLoading
-                ? const ShimmerLoading(type: ShimmerType.list)
-                : patients.isEmpty
-                    ? _buildEmptyState(context, userId)
-                    : _buildPatientsList(context, patients, userId),
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _showGenerateDoctorCodeDialog(context),
-        backgroundColor: AppColors.doctor,
-        child: const Icon(Icons.person_add),
-      ),
-    );
-  }
-
-  Widget _buildFilterChip(String label, String value) {
-    final isSelected = _filterBy == value;
-    return FilterChip(
-      label: Text(label),
-      selected: isSelected,
-      onSelected: (selected) {
-        setState(() => _filterBy = selected ? value : 'all');
-      },
-      backgroundColor:
-          isSelected ? AppColors.doctor.withOpacity(0.2) : Colors.white,
-      selectedColor: AppColors.doctor.withOpacity(0.1),
-      side: BorderSide(
-        color: isSelected ? AppColors.doctor : AppColors.borderColor,
-      ),
-      labelStyle: TextStyle(
-        color: isSelected ? AppColors.doctor : AppColors.textSecondary,
-        fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-      ),
-    );
-  }
-
-  Widget _buildEmptyState(BuildContext context, String userId) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.people_outline,
-            size: 64,
-            color: AppColors.textTertiary.withOpacity(0.5),
-          ),
-          const SizedBox(height: 20),
-          Text(
-            'No patients yet',
-            style: AppTypography.headlineSmall.copyWith(
-              fontWeight: FontWeight.w600,
-              color: AppColors.textSecondary,
+            const SizedBox(height: 24),
+            _PatientDirectoryCard(
+              initials: 'AM',
+              name: 'Amina',
+              id: 'TBM-23-0842',
+              status: 'On Treatment',
+              statusColor: doctorMintSoft,
+              statusText: doctorTeal,
+              days: '112',
+              totalDays: '180',
+              progress: 0.62,
+              lastLog: 'Today, 08:30',
+              lastLogIcon: Icons.check_circle_outline_rounded,
+              avatarColor: doctorTeal2,
+              onTap: () => context
+                  .go(AppRoutes.patientDetail, extra: {'patientName': 'Amina'}),
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Generate a patient code to onboard new patients',
-            style: AppTypography.bodyMedium.copyWith(
-              color: AppColors.textTertiary,
+            const SizedBox(height: 18),
+            _PatientDirectoryCard(
+              initials: 'DK',
+              name: 'David',
+              id: 'TBM-23-1105',
+              status: 'At Risk (3 Missed)',
+              statusColor: doctorDangerSoft,
+              statusText: doctorDanger,
+              days: '45',
+              totalDays: '180',
+              progress: 0.2,
+              progressColor: doctorDanger,
+              lastLog: '3 days ago',
+              lastLogIcon: Icons.warning_amber_rounded,
+              lastLogColor: doctorDanger,
+              avatarColor: doctorDangerSoft,
+              avatarText: doctorDanger,
+              onTap: () => context
+                  .go(AppRoutes.patientDetail, extra: {'patientName': 'David'}),
             ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 32),
-          ElevatedButton.icon(
-            onPressed: () => _showGenerateDoctorCodeDialog(context),
-            icon: const Icon(Icons.person_add),
-            label: const Text('Generate Patient Code'),
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.doctor),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPatientsList(
-    BuildContext context,
-    List<DoctorPatientOverview> patients,
-    String doctorId,
-  ) {
-    return RefreshIndicator(
-      onRefresh: () async {
-        await ref
-            .read(doctorPatientsProvider(doctorId).notifier)
-            .loadPatients();
-      },
-      child: ListView.separated(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        itemCount: patients.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 12),
-        itemBuilder: (context, index) =>
-            _buildPatientCard(context, patients[index]),
-      ),
-    );
-  }
-
-  Widget _buildPatientCard(
-    BuildContext context,
-    DoctorPatientOverview overview,
-  ) {
-    final patient = overview.patient;
-    final patientName = patient.fullName?.trim().isNotEmpty == true
-        ? patient.fullName!
-        : 'Unknown Patient';
-    final adherence = overview.adherencePercentage;
-    final phaseStatus = overview.phase.capitalizeFirst;
-    final lastUpdate = overview.lastUpdatedAt ?? DateTime.now();
-
-    final adherenceColor = !overview.hasTreatment
-        ? AppColors.info
-        : adherence > 80
-            ? AppColors.success
-            : adherence > 60
-                ? AppColors.warning
-                : AppColors.error;
-
-    return GestureDetector(
-      onTap: () {
-        context.go(AppRoutes.patientDetail, extra: {
-          'patientId': patient.id,
-          'patientName': patientName,
-        });
-      },
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.borderColor),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 4,
-              offset: const Offset(0, 2),
+            const SizedBox(height: 18),
+            _PatientDirectoryCard(
+              initials: 'SJ',
+              name: 'Sarah',
+              id: 'TBM-24-0012',
+              status: 'Pending Sputum Test',
+              statusColor: doctorNeutral,
+              statusText: const Color(0xFF4F585B),
+              days: '14',
+              totalDays: '180',
+              progress: 0.08,
+              progressColor: const Color(0xFF7D8788),
+              lastLog: 'Yesterday',
+              lastLogIcon: Icons.check_circle_outline_rounded,
+              avatarColor: doctorNeutral,
+              avatarText: const Color(0xFF5D6668),
+              onTap: () => context
+                  .go(AppRoutes.patientDetail, extra: {'patientName': 'Sarah'}),
+            ),
+            const SizedBox(height: 18),
+            _PatientDirectoryCard(
+              initials: 'EO',
+              name: 'Emmanuel',
+              id: 'TBM-23-0551',
+              status: 'On Treatment',
+              statusColor: doctorMintSoft,
+              statusText: doctorTeal,
+              days: '165',
+              totalDays: '180',
+              progress: 0.9,
+              lastLog: 'Today, 06:15',
+              lastLogIcon: Icons.check_circle_outline_rounded,
+              avatarColor: doctorTeal2,
+              onTap: () => context.go(AppRoutes.patientDetail,
+                  extra: {'patientName': 'Emmanuel'}),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _PatientDirectoryCard extends StatelessWidget {
+  final String initials;
+  final String name;
+  final String id;
+  final String status;
+  final Color statusColor;
+  final Color statusText;
+  final String days;
+  final String totalDays;
+  final double progress;
+  final Color progressColor;
+  final String lastLog;
+  final IconData lastLogIcon;
+  final Color lastLogColor;
+  final Color avatarColor;
+  final Color avatarText;
+  final VoidCallback onTap;
+
+  const _PatientDirectoryCard({
+    required this.initials,
+    required this.name,
+    required this.id,
+    required this.status,
+    required this.statusColor,
+    required this.statusText,
+    required this.days,
+    required this.totalDays,
+    required this.progress,
+    this.progressColor = doctorTeal2,
+    required this.lastLog,
+    required this.lastLogIcon,
+    this.lastLogColor = doctorTeal,
+    required this.avatarColor,
+    this.avatarText = Colors.white,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: DoctorCard(
+        padding: const EdgeInsets.all(20),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Patient header
             Row(
               children: [
-                // Avatar
-                Container(
-                  width: 56,
-                  height: 56,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: AppColors.doctor.withOpacity(0.2),
-                  ),
-                  child: Center(
-                    child: Text(
-                      patientName.isNotEmpty
-                          ? patientName[0].toUpperCase()
-                          : 'P',
-                      style: AppTypography.headlineSmall.copyWith(
-                        color: AppColors.doctor,
-                        fontWeight: FontWeight.w700,
-                      ),
+                CircleAvatar(
+                  radius: 24,
+                  backgroundColor: avatarColor,
+                  child: Text(
+                    initials,
+                    style: TextStyle(
+                      color: avatarText,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
                 ),
-                const SizedBox(width: 16),
-
-                // Patient info
+                const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        patientName,
-                        style: AppTypography.labelLarge.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        patient.email,
-                        style: AppTypography.bodySmall.copyWith(
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
+                      Text(name,
+                          style: const TextStyle(
+                              color: doctorText,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w700)),
+                      const SizedBox(height: 3),
+                      Text('ID: $id',
+                          style:
+                              const TextStyle(color: doctorText, fontSize: 13)),
                     ],
-                  ),
-                ),
-
-                // Status indicator
-                Container(
-                  width: 12,
-                  height: 12,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: adherenceColor,
                   ),
                 ),
               ],
             ),
+            const SizedBox(height: 18),
+            DoctorChip(
+              label: status,
+              icon: Icons.circle,
+              color: statusColor,
+              textColor: statusText,
+            ),
             const SizedBox(height: 16),
-
-            // Treatment status
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.borderColor.withOpacity(0.5),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
+            Container(height: 1, color: doctorBorder),
+            const SizedBox(height: 18),
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'Current Phase',
-                        style: AppTypography.caption.copyWith(
-                          color: AppColors.textSecondary,
+                      const Text('Days on Therapy',
+                          style: TextStyle(color: doctorMuted, fontSize: 13)),
+                      const SizedBox(height: 8),
+                      RichText(
+                        text: TextSpan(
+                          style: const TextStyle(color: doctorText),
+                          children: [
+                            TextSpan(
+                                text: days,
+                                style: const TextStyle(
+                                    fontSize: 21, fontWeight: FontWeight.w800)),
+                            TextSpan(
+                                text: ' / $totalDays',
+                                style: const TextStyle(fontSize: 12)),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        phaseStatus,
-                        style: AppTypography.labelSmall.copyWith(
-                          fontWeight: FontWeight.w600,
+                      const SizedBox(height: 10),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(999),
+                        child: LinearProgressIndicator(
+                          value: progress,
+                          minHeight: 4,
+                          backgroundColor: doctorNeutral,
+                          valueColor: AlwaysStoppedAnimation(progressColor),
                         ),
                       ),
                     ],
                   ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
+                ),
+                const SizedBox(width: 18),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'Adherence',
-                        style: AppTypography.caption.copyWith(
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        overview.hasTreatment
-                            ? '${adherence.toStringAsFixed(0)}%'
-                            : 'No data',
-                        style: AppTypography.labelSmall.copyWith(
-                          fontWeight: FontWeight.w600,
-                          color: adherenceColor,
-                        ),
+                      const Text('Last Log',
+                          style: TextStyle(color: doctorMuted, fontSize: 13)),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Icon(lastLogIcon, size: 16, color: lastLogColor),
+                          const SizedBox(width: 4),
+                          Expanded(
+                              child: Text(lastLog,
+                                  style: const TextStyle(
+                                      color: doctorText, fontSize: 14))),
+                        ],
                       ),
                     ],
                   ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            // Last update
-            Text(
-              'Last update: ${lastUpdate.formatUpdateTime}',
-              style: AppTypography.caption.copyWith(
-                color: AppColors.textTertiary,
-              ),
+                ),
+              ],
             ),
           ],
         ),
       ),
     );
-  }
-
-  void _showGenerateDoctorCodeDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Generate Patient Code'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'A unique 6-character code will be generated. Share this code with the patient to allow them to register.',
-              style: AppTypography.bodySmall,
-            ),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.borderColor.withOpacity(0.5),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Code Validity',
-                    style: AppTypography.labelSmall.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '• Valid for 30 days from generation\n'
-                    '• Can be used by 1 patient only\n'
-                    '• Can regenerate after expiry',
-                    style: AppTypography.bodySmall,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final authState = ref.read(authProvider);
-              final doctorId = authState.user?.id;
-              if (doctorId == null) {
-                Navigator.pop(context);
-                return;
-              }
-
-              Navigator.pop(context);
-
-              String code;
-              try {
-                code = await ref
-                    .read(doctorCodeRepositoryProvider)
-                    .generateCode(doctorId: doctorId, expiryDays: 30);
-              } catch (e) {
-                if (!context.mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Failed to generate code: $e')),
-                );
-                return;
-              }
-
-              if (!context.mounted) return;
-              _showGeneratedCodeDialog(context, code);
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.doctor),
-            child: const Text('Generate'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showGeneratedCodeDialog(BuildContext context, String code) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Patient Code Generated'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Share this code with your patient:',
-              style: AppTypography.bodySmall.copyWith(
-                color: AppColors.textSecondary,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppColors.doctor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppColors.doctor.withOpacity(0.3)),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    code,
-                    style: AppTypography.headlineSmall.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.doctor,
-                      letterSpacing: 2,
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.copy),
-                    onPressed: () {
-                      Clipboard.setData(ClipboardData(text: code));
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Copied to clipboard'),
-                          duration: Duration(seconds: 2),
-                        ),
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.warning.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.info_outline, color: AppColors.warning, size: 18),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Valid for 30 days. One patient per code.',
-                      style: AppTypography.caption.copyWith(
-                        color: AppColors.warning,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context),
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.doctor),
-            child: const Text('Done'),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-extension _DateTimeFormatX on DateTime {
-  String get formatUpdateTime {
-    final now = DateTime.now();
-    final difference = now.difference(this);
-
-    if (difference.inMinutes < 60) {
-      return '${difference.inMinutes} min ago';
-    } else if (difference.inHours < 24) {
-      return '${difference.inHours} hour ago';
-    } else if (difference.inDays < 7) {
-      return '${difference.inDays} day ago';
-    } else {
-      return '$day/$month/$year';
-    }
   }
 }
