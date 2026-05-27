@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:medtrace/presentation/pages/doctor/doctor_mockup_widgets.dart';
+import 'package:medtrace/presentation/router/app_routes.dart';
 
 class AnalyticsPage extends StatelessWidget {
   const AnalyticsPage({super.key});
@@ -297,7 +299,7 @@ class _ActionRequiredCard extends StatelessWidget {
             width: double.infinity,
             height: 38,
             child: ElevatedButton(
-              onPressed: () {},
+              onPressed: () => context.go(AppRoutes.analytics),
               style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.white,
                   foregroundColor: doctorTeal,
