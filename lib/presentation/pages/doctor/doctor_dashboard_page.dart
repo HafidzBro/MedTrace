@@ -1,349 +1,319 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:medtrace/presentation/providers/app_providers.dart';
-import 'package:medtrace/presentation/providers/feature_providers.dart';
-import 'package:medtrace/presentation/router/app_router.dart';
-import 'package:medtrace/shared/theme/app_theme.dart';
+import 'package:medtrace/presentation/pages/doctor/doctor_mockup_widgets.dart';
+import 'package:medtrace/presentation/router/app_routes.dart';
 
-/// Doctor main dashboard page
-/// Overview of patient management and alerts
-class DoctorDashboardPage extends ConsumerWidget {
+class DoctorDashboardPage extends StatelessWidget {
   const DoctorDashboardPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final authState = ref.watch(authProvider);
-    final user = authState.user;
-    final doctorName = user?.fullName ?? user?.email ?? 'Doctor';
-    final userId = user?.id ?? '';
-
-    final patientsState = ref.watch(doctorPatientsProvider(userId));
-    final alertsState = ref.watch(doctorAlertsProvider(userId));
-
-    final patientCount = patientsState.patients.length;
-    final openAlerts = alertsState.alerts.where((a) => !a.actionTaken).length;
-    final avgAdherence = patientCount > 0
-        ? patientsState.patients
-                .fold<double>(0, (sum, p) => sum + p.adherencePercentage) /
-            patientCount
-        : 0.0;
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('MedTrace'),
-        elevation: 0,
-        centerTitle: false,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () => _showLogoutDialog(context, ref),
-          ),
-        ],
-      ),
-      body: SingleChildScrollView(
+  Widget build(BuildContext context) {
+    return DoctorMockScaffold(
+      currentIndex: 0,
+      appBar: const DoctorTopBar(title: 'MedTrace', centeredTitle: true),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(32, 30, 32, 104),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Welcome card
-            Container(
-              margin: const EdgeInsets.all(16),
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [AppColors.doctor, AppColors.doctor.withOpacity(0.8)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
+            const Text(
+              'Good morning, Dr. Sarah',
+              style: TextStyle(
+                color: doctorText,
+                fontSize: 26,
+                fontWeight: FontWeight.w800,
+                height: 1.15,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Here is your patient overview for today.',
+              style: TextStyle(color: doctorMuted, fontSize: 15),
+            ),
+            const SizedBox(height: 34),
+            GridView.count(
+              crossAxisCount: 2,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisSpacing: 16,
+              mainAxisSpacing: 16,
+              childAspectRatio: 1.28,
+              children: const [
+                _KpiCard(
+                  title: 'TOTAL PATIENTS',
+                  value: '142',
+                  subtitle: '+12 this month',
+                  icon: Icons.groups_rounded,
                 ),
-                borderRadius: BorderRadius.circular(16),
-              ),
+                _KpiCard(
+                  title: 'ACTIVE\nTREATMENTS',
+                  value: '89',
+                  subtitle: '63% compliance rate',
+                  icon: Icons.medical_services_rounded,
+                  dark: true,
+                ),
+                _KpiCard(
+                  title: 'AT RISK OF\nDEFAULT',
+                  value: '14',
+                  subtitle: 'Requires immediate\naction',
+                  icon: Icons.warning_rounded,
+                  danger: true,
+                ),
+                _KpiCard(
+                  title: 'RECOVERED',
+                  value: '39',
+                  subtitle: '+5 this week',
+                  icon: Icons.check_circle_rounded,
+                ),
+              ],
+            ),
+            const SizedBox(height: 32),
+            DoctorCard(
+              padding: const EdgeInsets.all(24),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Welcome back, Dr. $doctorName',
-                    style: AppTypography.headlineSmall.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
-                    ),
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'Priority Follow-ups',
+                          style: TextStyle(
+                            color: doctorText,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () {},
+                        icon: const Icon(Icons.more_horiz_rounded),
+                        color: doctorTeal,
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Monitor your patients and manage their TB treatment',
-                    style: AppTypography.bodySmall.copyWith(
-                      color: Colors.white.withOpacity(0.9),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // Quick stats
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: _buildStatCard(
-                      icon: Icons.people,
-                      label: 'Patients',
-                      value: '$patientCount',
-                      color: AppColors.doctor,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _buildStatCard(
-                      icon: Icons.warning_amber,
-                      label: 'Alerts',
-                      value: '$openAlerts',
-                      color: AppColors.error,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _buildStatCard(
-                      icon: Icons.trending_up,
-                      label: 'Avg. Adherence',
-                      value: '${avgAdherence.toStringAsFixed(0)}%',
-                      color: AppColors.success,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            if (!patientsState.isLoading && patientCount == 0)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-                child: _buildEmptyPatientsCard(),
-              ),
-
-            // Feature menu
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Management',
-                    style: AppTypography.labelLarge.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
+                  const SizedBox(height: 18),
+                  const _FollowUpTile(
+                    initials: 'JD',
+                    name: 'John Doe',
+                    note: 'Missed 2 doses',
+                    badge: 'High Risk',
+                    badgeColor: doctorDangerSoft,
+                    badgeText: doctorDanger,
                   ),
                   const SizedBox(height: 12),
-                  _buildMenuGrid(context),
+                  const _FollowUpTile(
+                    initials: 'MG',
+                    name: 'Maria Garcia',
+                    note: 'Check-in overdue',
+                    badge: 'Medium Risk',
+                    badgeColor: doctorWarningSoft,
+                    badgeText: Color(0xFF8C4A1F),
+                    darkAvatar: true,
+                  ),
+                  const SizedBox(height: 12),
+                  const _FollowUpTile(
+                    initials: 'AK',
+                    name: 'Ahmed',
+                    note: 'Reported side effects',
+                    badge: 'Medium Risk',
+                    badgeColor: doctorWarningSoft,
+                    badgeText: Color(0xFF8C4A1F),
+                  ),
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 40,
+                    child: OutlinedButton(
+                      onPressed: () => context.go(AppRoutes.patientManagement),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: doctorTeal,
+                        side: const BorderSide(color: Color(0xFFB7C3C3)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(7),
+                        ),
+                      ),
+                      child: const Text(
+                        'View All Patients',
+                        style: TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
-
-            const SizedBox(height: 32),
           ],
         ),
       ),
     );
   }
+}
 
-  Widget _buildEmptyPatientsCard() {
+class _KpiCard extends StatelessWidget {
+  final String title;
+  final String value;
+  final String subtitle;
+  final IconData icon;
+  final bool dark;
+  final bool danger;
+
+  const _KpiCard({
+    required this.title,
+    required this.value,
+    required this.subtitle,
+    required this.icon,
+    this.dark = false,
+    this.danger = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = dark
+        ? doctorTeal
+        : danger
+            ? doctorDangerSoft
+            : Colors.white;
+    final fg = dark
+        ? Colors.white
+        : danger
+            ? doctorDanger
+            : doctorText;
+    final sub = dark ? const Color(0xFFA9DAD8) : doctorTeal;
+
     return Container(
-      width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.info.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.info.withOpacity(0.2)),
+        color: bg,
+        borderRadius: BorderRadius.circular(10),
+        border:
+            Border.all(color: danger ? const Color(0xFFFF9D9D) : doctorBorder),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.035),
+            blurRadius: 14,
+            offset: const Offset(0, 7),
+          ),
+        ],
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Stack(
         children: [
-          Icon(Icons.info_outline, color: AppColors.info, size: 22),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              'No patients are linked to your account yet. Generate a patient code to onboard a real patient.',
-              style: AppTypography.bodySmall.copyWith(
-                color: AppColors.textSecondary,
+          Positioned(
+            right: -28,
+            bottom: -34,
+            child: Container(
+              width: 86,
+              height: 86,
+              decoration: BoxDecoration(
+                color: dark
+                    ? Colors.white.withValues(alpha: 0.05)
+                    : doctorMintSoft,
+                shape: BoxShape.circle,
               ),
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatCard({
-    required IconData icon,
-    required String label,
-    required String value,
-    required Color color,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.2)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, color: color, size: 20),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: AppTypography.headlineSmall.copyWith(
-              color: color,
-              fontWeight: FontWeight.w700,
-              fontSize: 18,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            style: AppTypography.caption.copyWith(
-              color: AppColors.textSecondary,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMenuGrid(BuildContext context) {
-    final items = [
-      {
-        'icon': Icons.people_alt,
-        'label': 'Patient Management',
-        'description': 'Manage patients',
-        'route': AppRoutes.patientManagement,
-      },
-      {
-        'icon': Icons.notifications_active,
-        'label': 'Alerts',
-        'description': 'Medication issues',
-        'route': AppRoutes.alerts,
-      },
-      {
-        'icon': Icons.bar_chart,
-        'label': 'Analytics',
-        'description': 'Treatment data',
-        'route': AppRoutes.analytics,
-      },
-      {
-        'icon': Icons.map,
-        'label': 'Geographic Map',
-        'description': 'TB distribution',
-        'route': AppRoutes.doctorMap,
-      },
-    ];
-
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        childAspectRatio: 1.0,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-      ),
-      itemCount: items.length,
-      itemBuilder: (context, index) {
-        final item = items[index];
-        return _buildMenuItem(
-          context,
-          icon: item['icon'] as IconData,
-          label: item['label'] as String,
-          description: item['description'] as String,
-          route: item['route'] as String?,
-        );
-      },
-    );
-  }
-
-  Widget _buildMenuItem(
-    BuildContext context, {
-    required IconData icon,
-    required String label,
-    required String description,
-    required String? route,
-  }) {
-    return GestureDetector(
-      onTap: route != null ? () => context.go(route) : null,
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.borderColor),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 4,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: AppColors.doctor.withOpacity(0.1),
-                ),
-                child: Icon(icon, color: AppColors.doctor, size: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: TextStyle(
+                        color: danger
+                            ? doctorDanger
+                            : (dark ? const Color(0xFFA9DAD8) : doctorMuted),
+                        fontSize: 12,
+                        height: 1.15,
+                      ),
+                    ),
+                  ),
+                  Icon(icon,
+                      color: dark
+                          ? const Color(0xFFA9DAD8)
+                          : (danger ? doctorDanger : doctorTeal),
+                      size: 22),
+                ],
               ),
-              const SizedBox(height: 12),
+              const Spacer(),
               Text(
-                label,
-                style: AppTypography.labelSmall.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.text,
+                value,
+                style: TextStyle(
+                  color: fg,
+                  fontSize: 32,
+                  fontWeight: FontWeight.w800,
+                  height: 1,
                 ),
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 8),
               Text(
-                description,
-                style: AppTypography.caption.copyWith(
-                  color: AppColors.textTertiary,
+                subtitle,
+                style: TextStyle(
+                  color: danger ? doctorDanger : sub,
+                  fontSize: 13,
+                  height: 1.25,
                 ),
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),
-        ),
+        ],
       ),
     );
   }
+}
 
-  void _showLogoutDialog(BuildContext context, WidgetRef ref) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Logout?'),
-        content: const Text('Are you sure you want to logout?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+class _FollowUpTile extends StatelessWidget {
+  final String initials;
+  final String name;
+  final String note;
+  final String badge;
+  final Color badgeColor;
+  final Color badgeText;
+  final bool darkAvatar;
+
+  const _FollowUpTile({
+    required this.initials,
+    required this.name,
+    required this.note,
+    required this.badge,
+    required this.badgeColor,
+    required this.badgeText,
+    this.darkAvatar = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: doctorBorder),
+        borderRadius: BorderRadius.circular(7),
+      ),
+      child: Row(
+        children: [
+          DoctorAvatar(
+            initials: initials,
+            radius: 20,
+            color: darkAvatar ? const Color(0xFF0B1320) : doctorNeutral,
           ),
-          ElevatedButton(
-            onPressed: () async {
-              await ref.read(authProvider.notifier).logout();
-              if (!context.mounted) return;
-              Navigator.pop(context);
-              context.go(AppRoutes.login);
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
-            child: const Text('Logout'),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(name,
+                    style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: doctorText)),
+                const SizedBox(height: 2),
+                Text(note,
+                    style: const TextStyle(color: doctorMuted, fontSize: 14)),
+              ],
+            ),
           ),
+          DoctorChip(label: badge, color: badgeColor, textColor: badgeText),
         ],
       ),
     );

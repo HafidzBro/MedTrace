@@ -309,13 +309,15 @@ Quality requirements:
 
 ### 4.3 Doctor screens
 
-- [ ] Healthcare worker dashboard.
-- [ ] Patient management list.
-- [ ] Patient detail profile.
-- [ ] Update therapy status bottom sheet.
-- [ ] Reminder/adherence monitoring.
-- [ ] Alert center.
-- [ ] TB case distribution map.
+- [x] Healthcare worker dashboard.
+- [x] Patient management list.
+- [x] Patient detail profile.
+- [x] Update therapy status bottom sheet.
+- [x] Reminder/adherence monitoring.
+- [x] Alert center.
+- [x] TB case distribution map.
+
+UI-first pass completed from `assets/ui/doctor` mockups. Current doctor screens still use mock/local UI data and placeholder actions until Supabase integration is connected.
 
 Quality requirements:
 - [ ] Dashboard KPIs come from real queries.
