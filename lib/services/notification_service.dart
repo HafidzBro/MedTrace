@@ -25,7 +25,7 @@ class NotificationService {
     const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
     const iosInit = DarwinInitializationSettings();
 
-    final settings = InitializationSettings(android: androidInit, iOS: iosInit);
+    const settings = InitializationSettings(android: androidInit, iOS: iosInit);
 
     await _plugin.initialize(
       settings: settings,
@@ -70,6 +70,7 @@ class NotificationService {
     required String body,
     required DateTime when,
     String? payload,
+    bool repeatsDaily = false,
   }) async {
     if (!_initialized) await initialize();
     if (!when.isAfter(DateTime.now())) return;
@@ -77,7 +78,7 @@ class NotificationService {
     final notificationPayload = payload ??
         jsonEncode({'type': 'reminder', 'route': '/patient/reminders'});
 
-    final notificationDetails = NotificationDetails(
+    const notificationDetails = NotificationDetails(
       android: AndroidNotificationDetails(
         'medtrace_reminders',
         'Medication & Reminder Alerts',
@@ -86,7 +87,7 @@ class NotificationService {
         importance: Importance.high,
         priority: Priority.high,
       ),
-      iOS: const DarwinNotificationDetails(),
+      iOS: DarwinNotificationDetails(),
     );
 
     await _plugin.zonedSchedule(
@@ -96,6 +97,7 @@ class NotificationService {
       scheduledDate: tz.TZDateTime.from(when, tz.local),
       notificationDetails: notificationDetails,
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      matchDateTimeComponents: repeatsDaily ? DateTimeComponents.time : null,
       payload: notificationPayload,
     );
   }

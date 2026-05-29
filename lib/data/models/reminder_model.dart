@@ -50,9 +50,11 @@ class ReminderModel extends Equatable {
       status:
           json['status'] ?? ((json['is_sent'] ?? false) ? 'sent' : 'pending'),
       sentAt: parseNullableDateTime(json['sent_at']),
-      createdAt: parseDateTime(json['created_at']),
+      createdAt: parseDateTime(
+        json['created_at'] ?? DateTime.now().toIso8601String(),
+      ),
       scheduledDate: parseNullableDateTime(json['scheduled_date']) ??
-          parseDateTime(json['created_at']),
+          parseDateTime(json['created_at'] ?? DateTime.now().toIso8601String()),
     );
   }
 

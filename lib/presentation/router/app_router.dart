@@ -6,6 +6,7 @@ import 'package:medtrace/presentation/pages/auth/patient_registration/patient_re
 import 'package:medtrace/presentation/pages/auth/register_entry_page.dart';
 import 'package:medtrace/presentation/pages/auth/splash_page.dart';
 import 'package:medtrace/presentation/pages/patient/patient_dashboard_page.dart';
+import 'package:medtrace/presentation/pages/patient/adherence_history_page.dart';
 import 'package:medtrace/presentation/pages/patient/treatment_details_page.dart';
 import 'package:medtrace/presentation/pages/patient/medication_schedule_page.dart';
 import 'package:medtrace/presentation/pages/patient/chatbot_page.dart';
@@ -82,6 +83,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.treatment,
         name: 'treatment',
         builder: (context, state) => const TreatmentDetailsPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.adherenceHistory,
+        name: 'adherence_history',
+        builder: (context, state) => const AdherenceHistoryPage(),
       ),
       GoRoute(
         path: AppRoutes.medicationSchedule,

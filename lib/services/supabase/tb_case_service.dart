@@ -13,6 +13,7 @@ class TbCaseService {
     required DateTime diagnosisDate,
     String? tbCategory,
     String? tbType,
+    String? description,
   }) async {
     final resolvedPatientId = await patients.resolvePatientId(patientId);
     final response = await context.client
@@ -22,6 +23,7 @@ class TbCaseService {
           'diagnosis_date': context.toDateOnly(diagnosisDate),
           'tb_category': tbCategory,
           'tb_type': tbType,
+          'description': description,
         })
         .select()
         .single();

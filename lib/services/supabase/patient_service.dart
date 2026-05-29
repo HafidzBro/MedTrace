@@ -46,6 +46,48 @@ class PatientService {
     return PatientModel.fromJson(response);
   }
 
+  Future<PatientModel> getByAuthUserId(String authUserId) async {
+    final response = await context.client
+        .from('patients')
+        .select()
+        .eq('patient_id', await resolvePatientId(authUserId))
+        .single();
+
+    final patient = PatientModel.fromJson(response);
+    if (patient.patientCode?.trim().isNotEmpty == true) return patient;
+
+    return ensurePatientCode(patient.patientId);
+  }
+
+  Future<PatientModel> ensurePatientCode(String patientId) async {
+    final resolvedPatientId = await resolvePatientId(patientId);
+    final current = await context.client
+        .from('patients')
+        .select()
+        .eq('patient_id', resolvedPatientId)
+        .single();
+
+    final patient = PatientModel.fromJson(current);
+    if (patient.patientCode?.trim().isNotEmpty == true) return patient;
+
+    for (var attempt = 0; attempt < 5; attempt++) {
+      final code = _generatePatientCode(resolvedPatientId, attempt);
+      try {
+        final response = await context.client
+            .from('patients')
+            .update({'patient_code': code})
+            .eq('patient_id', resolvedPatientId)
+            .select()
+            .single();
+        return PatientModel.fromJson(response);
+      } catch (_) {
+        if (attempt == 4) rethrow;
+      }
+    }
+
+    return patient;
+  }
+
   Future<UserModel> getProfile(String patientId) async {
     final resolvedPatientId = await resolvePatientId(patientId);
     final response = await context.client
@@ -55,6 +97,16 @@ class PatientService {
         .single();
 
     return UserModel.fromJson(response['profiles'] as Map<String, dynamic>);
+  }
+
+  Future<UserModel?> getDoctorProfile(String patientId) async {
+    final resolvedPatientId = await resolvePatientId(patientId);
+    return doctors.getDoctorForPatient(resolvedPatientId);
+  }
+
+  Future<String?> getDoctorFacilityName(String patientId) async {
+    final resolvedPatientId = await resolvePatientId(patientId);
+    return doctors.getFacilityForPatient(resolvedPatientId);
   }
 
   Future<List<UserModel>> listForDoctor(String doctorId) async {
@@ -83,5 +135,13 @@ class PatientService {
         .single();
 
     return PatientModel.fromJson(response);
+  }
+
+  String _generatePatientCode(String patientId, int attempt) {
+    final compact = patientId.replaceAll('-', '').toUpperCase();
+    final prefix = compact.substring(0, 4);
+    final suffix = compact.substring(compact.length - 4);
+    final attemptSuffix = attempt == 0 ? '' : '-$attempt';
+    return 'MT-$prefix-$suffix$attemptSuffix';
   }
 }

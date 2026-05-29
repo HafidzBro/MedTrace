@@ -6,7 +6,9 @@ import 'package:medtrace/shared/theme/app_theme.dart';
 class PatientRegistrationStep3Treatment extends StatelessWidget {
   final GlobalKey<FormState> formKey;
   final TextEditingController doctorCodeController;
+  final TextEditingController tbCaseDescriptionController;
   final String therapyStatus;
+  final bool isTherapyStatusLocked;
   final Set<int> selectedScheduleDays;
   final ValueChanged<String> onTherapyStatusChanged;
   final ValueChanged<int> onScheduleDayToggled;
@@ -15,7 +17,9 @@ class PatientRegistrationStep3Treatment extends StatelessWidget {
     super.key,
     required this.formKey,
     required this.doctorCodeController,
+    required this.tbCaseDescriptionController,
     required this.therapyStatus,
+    required this.isTherapyStatusLocked,
     required this.selectedScheduleDays,
     required this.onTherapyStatusChanged,
     required this.onScheduleDayToggled,
@@ -37,7 +41,9 @@ class PatientRegistrationStep3Treatment extends StatelessWidget {
                   icon: Icons.person_add_alt_1_outlined,
                   label: 'Registered',
                   selected: therapyStatus == 'registered',
-                  onTap: () => onTherapyStatusChanged('registered'),
+                  onTap: isTherapyStatusLocked
+                      ? null
+                      : () => onTherapyStatusChanged('registered'),
                 ),
               ),
               const SizedBox(width: 16),
@@ -46,14 +52,25 @@ class PatientRegistrationStep3Treatment extends StatelessWidget {
                   icon: Icons.medication_outlined,
                   label: 'On Treatment',
                   selected: therapyStatus == 'on_treatment',
-                  onTap: () => onTherapyStatusChanged('on_treatment'),
+                  onTap: isTherapyStatusLocked
+                      ? null
+                      : () => onTherapyStatusChanged('on_treatment'),
                 ),
               ),
             ],
           ),
+          const SizedBox(height: 8),
+          Text(
+            'Status follows the TB case category selected in Step 2.',
+            style: AppTypography.bodySmall.copyWith(
+              color: AppColors.mediumGrey,
+            ),
+          ),
           if (therapyStatus == 'on_treatment') ...[
             const SizedBox(height: 20),
-            const _TreatmentDescriptionPanel(),
+            _TreatmentDescriptionPanel(
+              controller: tbCaseDescriptionController,
+            ),
           ],
           const SizedBox(height: 32),
           RegistrationFormCard(
@@ -104,7 +121,7 @@ class _StatusOptionButton extends StatelessWidget {
   final IconData icon;
   final String label;
   final bool selected;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   const _StatusOptionButton({
     required this.icon,
@@ -172,7 +189,11 @@ class _StatusOptionButton extends StatelessWidget {
 }
 
 class _TreatmentDescriptionPanel extends StatelessWidget {
-  const _TreatmentDescriptionPanel();
+  final TextEditingController controller;
+
+  const _TreatmentDescriptionPanel({
+    required this.controller,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -206,12 +227,20 @@ class _TreatmentDescriptionPanel extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          Text(
-            'No treatment description is available yet. This section will show the real description from Supabase after the assigned doctor creates or updates the treatment plan.',
-            style: AppTypography.bodySmall.copyWith(
-              color: AppColors.mediumGrey,
-              height: 1.45,
-            ),
+          RegistrationTextInput(
+            controller: controller,
+            label: '',
+            hint: 'Describe symptoms, complaints, or previous treatment notes',
+            icon: Icons.notes_outlined,
+            minLines: 4,
+            maxLines: 6,
+            textCapitalization: TextCapitalization.sentences,
+            validator: (value) {
+              if (value == null || value.trim().isEmpty) {
+                return 'Description is required for non-new cases';
+              }
+              return null;
+            },
           ),
         ],
       ),

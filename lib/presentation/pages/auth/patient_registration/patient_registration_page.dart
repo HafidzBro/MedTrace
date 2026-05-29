@@ -7,6 +7,7 @@ import 'package:medtrace/presentation/pages/auth/patient_registration/patient_re
 import 'package:medtrace/presentation/pages/auth/patient_registration/patient_registration_widgets.dart';
 import 'package:medtrace/presentation/providers/app_providers.dart';
 import 'package:medtrace/presentation/router/app_router.dart';
+import 'package:medtrace/services/device_location_service.dart';
 import 'package:medtrace/shared/theme/app_theme.dart';
 
 enum PatientRegistrationStep { identity, medical, treatment }
@@ -29,15 +30,23 @@ class _PatientRegistrationPageState
   late final TextEditingController _emailController;
   late final TextEditingController _passwordController;
   late final TextEditingController _confirmPasswordController;
+  late final TextEditingController _nikController;
   late final TextEditingController _phoneController;
   late final TextEditingController _addressController;
   late final TextEditingController _doctorCodeController;
+  late final TextEditingController _tbCaseDescriptionController;
 
   PatientRegistrationStep _step = PatientRegistrationStep.identity;
   String? _selectedGender = 'female';
   String _therapyStatus = 'registered';
   final Set<int> _selectedScheduleDays = {1, 2, 3, 4, 5};
   DateTime? _dateOfBirth;
+  DateTime? _diagnosisDate;
+  String? _tbCaseCategory = 'new_case';
+  double? _latitude;
+  double? _longitude;
+  double? _locationAccuracy;
+  bool _isLocating = false;
   bool _showPassword = false;
   bool _showConfirmPassword = false;
 
@@ -48,9 +57,11 @@ class _PatientRegistrationPageState
     _emailController = TextEditingController();
     _passwordController = TextEditingController();
     _confirmPasswordController = TextEditingController();
+    _nikController = TextEditingController();
     _phoneController = TextEditingController();
     _addressController = TextEditingController();
     _doctorCodeController = TextEditingController();
+    _tbCaseDescriptionController = TextEditingController();
   }
 
   @override
@@ -59,9 +70,11 @@ class _PatientRegistrationPageState
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    _nikController.dispose();
     _phoneController.dispose();
     _addressController.dispose();
     _doctorCodeController.dispose();
+    _tbCaseDescriptionController.dispose();
     super.dispose();
   }
 
@@ -75,7 +88,12 @@ class _PatientRegistrationPageState
       return;
     }
 
-    context.pop();
+    if (context.canPop()) {
+      context.pop();
+      return;
+    }
+
+    context.go(AppRoutes.register);
   }
 
   Future<void> _handleContinue() async {
@@ -118,6 +136,12 @@ class _PatientRegistrationPageState
           doctorCode: code,
           fullName: _fullNameController.text.trim(),
           dateOfBirth: _dateOfBirth,
+          nik: _nikController.text.trim(),
+          diagnosisDate: _diagnosisDate,
+          tbCaseCategory: _tbCaseCategory,
+          tbCaseDescription: _therapyStatus == 'on_treatment'
+              ? _tbCaseDescriptionController.text.trim()
+              : null,
           phoneNumber: _phoneController.text.trim().isEmpty
               ? null
               : _phoneController.text.trim(),
@@ -125,6 +149,9 @@ class _PatientRegistrationPageState
           address: _addressController.text.trim().isEmpty
               ? null
               : _addressController.text.trim(),
+          latitude: _latitude,
+          longitude: _longitude,
+          locationAccuracy: _locationAccuracy,
         );
 
     if (!mounted) return;
@@ -158,6 +185,53 @@ class _PatientRegistrationPageState
 
     if (selected != null) {
       setState(() => _dateOfBirth = selected);
+    }
+  }
+
+  Future<void> _pickDiagnosisDate() async {
+    final now = DateTime.now();
+    final selected = await showDatePicker(
+      context: context,
+      initialDate: _diagnosisDate ?? now,
+      firstDate: DateTime(1900),
+      lastDate: DateTime(now.year, now.month, now.day),
+    );
+
+    if (selected != null) {
+      setState(() => _diagnosisDate = selected);
+    }
+  }
+
+  Future<void> _useCurrentLocation() async {
+    setState(() => _isLocating = true);
+    try {
+      final location =
+          await ref.read(deviceLocationServiceProvider).getCurrentLocation();
+      if (!mounted) return;
+
+      setState(() {
+        _latitude = location.latitude;
+        _longitude = location.longitude;
+        _locationAccuracy = location.accuracy;
+        if (location.address != null && location.address!.isNotEmpty) {
+          _addressController.text = location.address!;
+        }
+      });
+
+      _showSnackBar('Current location captured');
+    } on LocationServiceDisabledException {
+      _showSnackBar('Please enable location services.', isError: true);
+    } on LocationPermissionDeniedForeverException {
+      _showSnackBar(
+        'Location permission is permanently denied. Enable it from app settings.',
+        isError: true,
+      );
+    } on LocationPermissionDeniedException {
+      _showSnackBar('Location permission was denied.', isError: true);
+    } catch (e) {
+      _showSnackBar('Unable to get current location: $e', isError: true);
+    } finally {
+      if (mounted) setState(() => _isLocating = false);
     }
   }
 
@@ -250,6 +324,7 @@ class _PatientRegistrationPageState
           emailController: _emailController,
           passwordController: _passwordController,
           confirmPasswordController: _confirmPasswordController,
+          nikController: _nikController,
           phoneController: _phoneController,
           selectedGender: _selectedGender,
           dateOfBirth: _dateOfBirth,
@@ -266,14 +341,33 @@ class _PatientRegistrationPageState
         return PatientRegistrationStep2Medical(
           key: const ValueKey('medical-step'),
           formKey: _medicalFormKey,
+          diagnosisDate: _diagnosisDate,
+          tbCaseCategory: _tbCaseCategory,
+          onPickDiagnosisDate: _pickDiagnosisDate,
+          onTbCaseCategoryChanged: (value) {
+            setState(() {
+              _tbCaseCategory = value;
+              _therapyStatus =
+                  value == 'new_case' ? 'registered' : 'on_treatment';
+              if (_therapyStatus == 'registered') {
+                _tbCaseDescriptionController.clear();
+              }
+            });
+          },
           addressController: _addressController,
+          latitude: _latitude,
+          longitude: _longitude,
+          isLocating: _isLocating,
+          onUseCurrentLocation: _useCurrentLocation,
         );
       case PatientRegistrationStep.treatment:
         return PatientRegistrationStep3Treatment(
           key: const ValueKey('treatment-step'),
           formKey: _treatmentFormKey,
           doctorCodeController: _doctorCodeController,
+          tbCaseDescriptionController: _tbCaseDescriptionController,
           therapyStatus: _therapyStatus,
+          isTherapyStatusLocked: true,
           selectedScheduleDays: _selectedScheduleDays,
           onTherapyStatusChanged: (value) {
             setState(() => _therapyStatus = value);

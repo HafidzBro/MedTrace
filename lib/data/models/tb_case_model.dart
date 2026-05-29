@@ -8,6 +8,7 @@ class TbCaseModel extends Equatable {
   final DateTime diagnosisDate;
   final String? tbCategory;
   final String? tbType;
+  final String? description;
   final DateTime createdAt;
 
   const TbCaseModel({
@@ -16,6 +17,7 @@ class TbCaseModel extends Equatable {
     required this.diagnosisDate,
     this.tbCategory,
     this.tbType,
+    this.description,
     required this.createdAt,
   });
 
@@ -25,6 +27,7 @@ class TbCaseModel extends Equatable {
         diagnosisDate: parseDateTime(json['diagnosis_date']),
         tbCategory: json['tb_category'],
         tbType: json['tb_type'],
+        description: json['description'],
         createdAt: parseDateTime(json['created_at']),
       );
 
@@ -36,10 +39,18 @@ class TbCaseModel extends Equatable {
         'diagnosis_date': diagnosisDate.toIso8601String(),
         'tb_category': tbCategory,
         'tb_type': tbType,
+        'description': description,
         'created_at': createdAt.toIso8601String(),
       };
 
   @override
-  List<Object?> get props =>
-      [tbCaseId, patientId, diagnosisDate, tbCategory, tbType, createdAt];
+  List<Object?> get props => [
+        tbCaseId,
+        patientId,
+        diagnosisDate,
+        tbCategory,
+        tbType,
+        description,
+        createdAt,
+      ];
 }

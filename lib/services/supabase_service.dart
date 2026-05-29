@@ -1,6 +1,9 @@
 import 'package:logger/logger.dart';
 import 'package:medtrace/data/models/doctor_code_model.dart';
+import 'package:medtrace/data/models/medication_log_model.dart';
+import 'package:medtrace/data/models/patient_model.dart';
 import 'package:medtrace/data/models/profile_model.dart';
+import 'package:medtrace/data/models/reminder_model.dart';
 import 'package:medtrace/data/models/therapy_model.dart';
 import 'package:medtrace/services/supabase/alert_service.dart';
 import 'package:medtrace/services/supabase/auth_service.dart';
@@ -51,7 +54,7 @@ class SupabaseService {
     patients = PatientService(context, doctors);
     tbCases = TbCaseService(context, patients);
     auth = AuthService(context, profiles, doctorCodes);
-    therapies = TherapyService(context, doctors);
+    therapies = TherapyService(context, doctors, patients);
     medications = MedicationService(context);
     medicationLogs = MedicationLogService(context, patients);
     reminders = ReminderService(context, patients);
@@ -73,9 +76,16 @@ class SupabaseService {
     required String doctorCode,
     required String fullName,
     DateTime? dateOfBirth,
+    String? nik,
+    DateTime? diagnosisDate,
+    String? tbCaseCategory,
+    String? tbCaseDescription,
     String? phoneNumber,
     String? gender,
     String? address,
+    double? latitude,
+    double? longitude,
+    double? locationAccuracy,
   }) {
     return auth.registerPatient(
       email: email,
@@ -83,9 +93,16 @@ class SupabaseService {
       doctorCode: doctorCode,
       fullName: fullName,
       dateOfBirth: dateOfBirth,
+      nik: nik,
+      diagnosisDate: diagnosisDate,
+      tbCaseCategory: tbCaseCategory,
+      tbCaseDescription: tbCaseDescription,
       phoneNumber: phoneNumber,
       gender: gender,
       address: address,
+      latitude: latitude,
+      longitude: longitude,
+      locationAccuracy: locationAccuracy,
     );
   }
 
@@ -95,9 +112,16 @@ class SupabaseService {
     required String fullName,
     required String doctorCode,
     DateTime? dateOfBirth,
+    String? nik,
+    DateTime? diagnosisDate,
+    String? tbCaseCategory,
+    String? tbCaseDescription,
     String? phoneNumber,
     String? gender,
     String? address,
+    double? latitude,
+    double? longitude,
+    double? locationAccuracy,
   }) {
     return auth.completePatientRegistrationAfterVerification(
       userId: userId,
@@ -105,9 +129,16 @@ class SupabaseService {
       fullName: fullName,
       doctorCode: doctorCode,
       dateOfBirth: dateOfBirth,
+      nik: nik,
+      diagnosisDate: diagnosisDate,
+      tbCaseCategory: tbCaseCategory,
+      tbCaseDescription: tbCaseDescription,
       phoneNumber: phoneNumber,
       gender: gender,
       address: address,
+      latitude: latitude,
+      longitude: longitude,
+      locationAccuracy: locationAccuracy,
     );
   }
 
@@ -127,6 +158,45 @@ class SupabaseService {
   Future<void> resetPassword(String email) => auth.resetPassword(email);
 
   Future<UserModel> getUser(String userId) => profiles.getByAuthUserId(userId);
+
+  Future<PatientProfileSummary> patientProfileSummary(String userId) async {
+    final profile = await profiles.getByAuthUserId(userId);
+    final patient = await patients.getByAuthUserId(userId);
+    final doctor = await patients.getDoctorProfile(patient.id);
+    final facilityName = await patients.getDoctorFacilityName(patient.id);
+    final reminder = await reminders.ensureMedicationReminder(
+      patientId: patient.id,
+    );
+
+    return PatientProfileSummary(
+      profile: profile,
+      patient: patient,
+      doctor: doctor,
+      facilityName: facilityName,
+      medicationReminder: reminder,
+    );
+  }
+
+  Future<PatientProfileSummary> updateMedicationReminderPreference({
+    required String userId,
+    DateTime? reminderTime,
+    bool? enabled,
+  }) async {
+    final patient = await patients.getByAuthUserId(userId);
+    await reminders.updateMedicationReminder(
+      patientId: patient.id,
+      reminderTime: reminderTime,
+      enabled: null,
+    );
+    if (reminderTime != null) {
+      await medicationLogs.reschedulePendingLogsForReminderTime(
+        patientId: patient.id,
+        reminderTime: reminderTime,
+      );
+    }
+
+    return patientProfileSummary(userId);
+  }
 
   Future<UserModel> updateProfile({
     required String userId,
@@ -198,6 +268,53 @@ class SupabaseService {
     return therapies.getDoctorPatientsTreatments(doctorId);
   }
 
+  Future<void> logTodayDose(String patientId) async {
+    await medicationLogs.logTodayDose(patientId);
+  }
+
+  Future<List<MedicationLogModel>> patientAdherenceHistory(
+    String patientId,
+  ) async {
+    final therapy = await therapies.getPatientTreatment(patientId);
+    if (therapy != null) {
+      await medicationLogs.ensureWeeklyLogs(
+        patientId: patientId,
+        therapy: therapy,
+      );
+    }
+
+    return medicationLogs.listForPatient(patientId);
+  }
+
+  Future<MedicationIntakePlan?> currentPatientIntakePlan(
+    String patientId,
+  ) async {
+    final therapy = await therapies.getPatientTreatment(patientId);
+    if (therapy == null) return null;
+
+    await medicationLogs.ensureWeeklyLogs(
+      patientId: patientId,
+      therapy: therapy,
+    );
+    final plan = await medications.currentIntakePlan(therapy);
+    final todayLog = await medicationLogs.todayLog(patientId);
+    final reminder = await reminders.ensureMedicationReminder(
+      patientId: patientId,
+    );
+    if (plan == null) return null;
+
+    return MedicationIntakePlan(
+      phaseId: plan.phaseId,
+      phaseName: plan.phaseName,
+      startMonth: plan.startMonth,
+      endMonth: plan.endMonth,
+      intakeTime: reminder.reminderTime,
+      instructions: plan.instructions,
+      items: plan.items,
+      todayLog: todayLog,
+    );
+  }
+
   Future<TreatmentModel> updateTreatment({
     required String treatmentId,
     String? phase,
@@ -213,4 +330,22 @@ class SupabaseService {
       notes: notes,
     );
   }
+}
+
+class PatientProfileSummary {
+  final UserModel profile;
+  final PatientModel patient;
+  final UserModel? doctor;
+  final String? facilityName;
+  final ReminderModel medicationReminder;
+
+  const PatientProfileSummary({
+    required this.profile,
+    required this.patient,
+    required this.doctor,
+    this.facilityName,
+    required this.medicationReminder,
+  });
+
+  bool get remindersEnabled => medicationReminder.status != 'cancelled';
 }

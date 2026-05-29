@@ -1,12 +1,14 @@
 import 'package:medtrace/data/models/therapy_model.dart';
 import 'package:medtrace/services/supabase/doctor_service.dart';
+import 'package:medtrace/services/supabase/patient_service.dart';
 import 'package:medtrace/services/supabase/supabase_service_context.dart';
 
 class TherapyService {
   final SupabaseServiceContext context;
   final DoctorService doctors;
+  final PatientService patients;
 
-  const TherapyService(this.context, this.doctors);
+  const TherapyService(this.context, this.doctors, this.patients);
 
   Future<TreatmentModel> createTreatment({
     required String patientId,
@@ -16,10 +18,11 @@ class TherapyService {
     String phase = 'intensive',
   }) async {
     final resolvedDoctorId = await doctors.resolveDoctorId(doctorId);
+    final resolvedPatientId = await patients.resolvePatientId(patientId);
     final tbCase = await context.client
         .from('tb_cases')
         .insert({
-          'patient_id': patientId,
+          'patient_id': resolvedPatientId,
           'diagnosis_date': context.toDateOnly(diagnosisDate),
         })
         .select()
@@ -29,7 +32,7 @@ class TherapyService {
         .from('therapies')
         .insert({
           'tb_case_id': tbCase['tb_case_id'],
-          'patient_id': patientId,
+          'patient_id': resolvedPatientId,
           'doctor_id': resolvedDoctorId,
           'start_date': context.toDateOnly(startDate),
           'status': 'ongoing',
@@ -46,10 +49,11 @@ class TherapyService {
   }
 
   Future<TreatmentModel?> getPatientTreatment(String patientId) async {
+    final resolvedPatientId = await patients.resolvePatientId(patientId);
     final response = await context.client
         .from('therapies')
         .select('*, tb_cases(diagnosis_date), therapy_phases(phase_name)')
-        .eq('patient_id', patientId)
+        .eq('patient_id', resolvedPatientId)
         .inFilter('status', ['ongoing', 'on_treatment'])
         .order('created_at', ascending: false)
         .maybeSingle();

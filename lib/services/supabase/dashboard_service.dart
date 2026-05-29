@@ -54,11 +54,16 @@ class DashboardService {
 
   Future<PatientDashboardSummary> patientSummary(String patientId) async {
     final therapy = await therapies.getPatientTreatment(patientId);
-    final logs = await medicationLogs.listForPatient(patientId);
+    final logs = therapy == null
+        ? <MedicationLogModel>[]
+        : await medicationLogs.ensureWeeklyLogs(
+            patientId: patientId,
+            therapy: therapy,
+          );
 
     return PatientDashboardSummary(
       therapy: therapy,
-      recentLogs: logs.take(10).toList(),
+      recentLogs: logs,
     );
   }
 
