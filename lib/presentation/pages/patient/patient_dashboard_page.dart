@@ -11,7 +11,12 @@ class PatientDashboardPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(authProvider).user;
+    final summary = ref.watch(currentPatientDashboardSummaryProvider);
     final firstName = _firstName(user?.fullName ?? user?.email ?? 'Patient');
+    final therapy = summary.valueOrNull?.therapy;
+    final progress = _therapyProgress(therapy?.treatmentDaysElapsed ?? 0);
+    final adherence = summary.valueOrNull?.adherencePercentage;
+    final recentLogs = summary.valueOrNull?.recentLogs ?? const [];
 
     return PatientMockScaffold(
       currentIndex: 0,
@@ -46,66 +51,84 @@ class PatientDashboardPage extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: 34),
-              PatientCard(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 18, vertical: 20),
-                child: Column(
-                  children: [
-                    const Row(
-                      children: [
-                        Icon(Icons.auto_graph_rounded, color: patientTeal),
-                        SizedBox(width: 10),
-                        Expanded(
+              InkWell(
+                borderRadius: BorderRadius.circular(10),
+                onTap: () => context.go(AppRoutes.adherenceHistory),
+                child: PatientCard(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 18, vertical: 20),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.auto_graph_rounded,
+                              color: patientTeal),
+                          const SizedBox(width: 10),
+                          const Expanded(
+                            child: Text(
+                              'Therapy Progress',
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w700,
+                                color: patientText,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            therapy == null
+                                ? 'No active therapy'
+                                : 'Day ${therapy.treatmentDaysElapsed}',
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color: patientTeal,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(999),
+                        child: LinearProgressIndicator(
+                          value: progress,
+                          minHeight: 12,
+                          backgroundColor: patientNeutral,
+                          valueColor: const AlwaysStoppedAnimation(patientTeal),
+                        ),
+                      ),
+                      if (adherence != null) ...[
+                        const SizedBox(height: 10),
+                        Align(
+                          alignment: Alignment.centerRight,
                           child: Text(
-                            'Therapy Progress',
-                            style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w700,
-                              color: patientText,
+                            'Adherence ${adherence.toStringAsFixed(0)}%',
+                            style: const TextStyle(
+                              color: patientMuted,
+                              fontSize: 13,
                             ),
                           ),
                         ),
-                        Text(
-                          'Month 2 of 6',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                            color: patientTeal,
-                          ),
-                        ),
                       ],
-                    ),
-                    const SizedBox(height: 14),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(999),
-                      child: const LinearProgressIndicator(
-                        value: 0.34,
-                        minHeight: 12,
-                        backgroundColor: patientNeutral,
-                        valueColor: AlwaysStoppedAnimation(patientTeal),
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(height: 32),
-              _MedicineCard(onLogDose: () => context.go(AppRoutes.reminders)),
+              _MedicineCard(
+                isLoading: summary.isLoading,
+                nextDoseLabel: _nextDoseLabel(recentLogs),
+                canLogDose: therapy != null && !summary.isLoading,
+                onLogDose: () => context.go(AppRoutes.reminders),
+              ),
               const SizedBox(height: 32),
               const SectionTitle('Weekly Adherence'),
               const SizedBox(height: 12),
-              const PatientCard(
-                padding: EdgeInsets.symmetric(horizontal: 18, vertical: 18),
+              PatientCard(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _DayDot(day: 'M', status: _DayStatus.done),
-                    _DayDot(day: 'T', status: _DayStatus.done),
-                    _DayDot(day: 'W', status: _DayStatus.current),
-                    _DayDot(day: 'T'),
-                    _DayDot(day: 'F'),
-                    _DayDot(day: 'S'),
-                    _DayDot(day: 'S'),
-                  ],
+                  children: _weekDots(recentLogs),
                 ),
               ),
               const SizedBox(height: 32),
@@ -158,12 +181,68 @@ class PatientDashboardPage extends ConsumerWidget {
     if (trimmed.isEmpty) return 'Patient';
     return trimmed.split(RegExp(r'\s+')).first;
   }
+
+  static double _therapyProgress(int days) {
+    if (days <= 0) return 0;
+    return (days / 180).clamp(0.0, 1.0);
+  }
+
+  static String _nextDoseLabel(List<dynamic> logs) {
+    final todayLogs = _logsForDate(logs, DateTime.now());
+    if (todayLogs.any((log) => log.isTaken)) return 'Logged today';
+    if (todayLogs.any((log) => log.isMissed)) return 'Missed today';
+
+    final pending = logs.where((log) => log.isPending).toList();
+    if (pending.isEmpty) return 'Today, 08:00 AM';
+
+    final scheduled = pending.first.scheduledAt as DateTime;
+    final hour = scheduled.hour.toString().padLeft(2, '0');
+    final minute = scheduled.minute.toString().padLeft(2, '0');
+    return 'Today, $hour:$minute';
+  }
+
+  static List<Widget> _weekDots(List<dynamic> logs) {
+    const days = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+    final now = DateTime.now();
+
+    return List.generate(days.length, (index) {
+      final date = now.subtract(Duration(days: now.weekday - index - 1));
+      final dayLogs = _logsForDate(logs, date);
+
+      final status = dayLogs.any((log) => log.isTaken)
+          ? _DayStatus.done
+          : dayLogs.any((log) => log.isMissed)
+              ? _DayStatus.missed
+              : index == now.weekday - 1
+                  ? _DayStatus.current
+                  : _DayStatus.empty;
+
+      return _DayDot(day: days[index], status: status);
+    });
+  }
+
+  static List<dynamic> _logsForDate(List<dynamic> logs, DateTime date) {
+    return logs.where((log) {
+      final scheduled = log.scheduledDate as DateTime;
+      return scheduled.year == date.year &&
+          scheduled.month == date.month &&
+          scheduled.day == date.day;
+    }).toList();
+  }
 }
 
 class _MedicineCard extends StatelessWidget {
   final VoidCallback onLogDose;
+  final bool isLoading;
+  final bool canLogDose;
+  final String nextDoseLabel;
 
-  const _MedicineCard({required this.onLogDose});
+  const _MedicineCard({
+    required this.onLogDose,
+    required this.isLoading,
+    required this.canLogDose,
+    required this.nextDoseLabel,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -186,8 +265,8 @@ class _MedicineCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              const PatientChip(
-                label: 'Today, 08:00 AM',
+              PatientChip(
+                label: isLoading ? 'Loading schedule...' : nextDoseLabel,
                 color: Colors.white,
                 textColor: patientTeal,
               ),
@@ -222,7 +301,7 @@ class _MedicineCard extends StatelessWidget {
             width: double.infinity,
             height: 44,
             child: ElevatedButton.icon(
-              onPressed: onLogDose,
+              onPressed: canLogDose ? onLogDose : null,
               icon: const Icon(Icons.check_circle_outline_rounded, size: 22),
               label: const Text('Log Dose'),
               style: ElevatedButton.styleFrom(
@@ -245,7 +324,7 @@ class _MedicineCard extends StatelessWidget {
   }
 }
 
-enum _DayStatus { empty, done, current }
+enum _DayStatus { empty, done, missed, current }
 
 class _DayDot extends StatelessWidget {
   final String day;
@@ -259,6 +338,7 @@ class _DayDot extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final filled = status == _DayStatus.done;
+    final missed = status == _DayStatus.missed;
     final current = status == _DayStatus.current;
     return Column(
       children: [
@@ -268,21 +348,31 @@ class _DayDot extends StatelessWidget {
           width: 34,
           height: 34,
           decoration: BoxDecoration(
-            color: filled ? patientMint : Colors.white,
+            color: filled
+                ? patientMint
+                : missed
+                    ? const Color(0xFFFFE5E5)
+                    : Colors.white,
             shape: BoxShape.circle,
             border: Border.all(
-              color: current ? patientTeal : patientBorder,
-              width: current ? 2 : 1,
+              color: current
+                  ? patientTeal
+                  : missed
+                      ? const Color(0xFFE57373)
+                      : patientBorder,
+              width: current || missed ? 2 : 1,
             ),
           ),
           child: Icon(
             filled
                 ? Icons.check_rounded
-                : current
-                    ? Icons.circle
-                    : null,
-            size: filled ? 18 : 10,
-            color: patientTeal,
+                : missed
+                    ? Icons.close_rounded
+                    : current
+                        ? Icons.circle
+                        : null,
+            size: filled || missed ? 18 : 10,
+            color: missed ? const Color(0xFFD32F2F) : patientTeal,
           ),
         ),
       ],

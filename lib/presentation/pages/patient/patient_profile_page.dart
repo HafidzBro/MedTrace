@@ -4,23 +4,79 @@ import 'package:go_router/go_router.dart';
 import 'package:medtrace/presentation/pages/patient/patient_mockup_widgets.dart';
 import 'package:medtrace/presentation/providers/app_providers.dart';
 import 'package:medtrace/presentation/router/app_routes.dart';
+import 'package:medtrace/services/notification_service.dart';
+import 'package:medtrace/services/supabase_service.dart';
 
-class PatientProfilePage extends ConsumerWidget {
+class PatientProfilePage extends ConsumerStatefulWidget {
   const PatientProfilePage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<PatientProfilePage> createState() => _PatientProfilePageState();
+}
+
+class _PatientProfilePageState extends ConsumerState<PatientProfilePage> {
+  bool? _notificationOverride;
+
+  @override
+  Widget build(BuildContext context) {
     final user = ref.watch(authProvider).user;
+    final summary = ref.watch(currentPatientProfileSummaryProvider);
+    final notificationEnabled =
+        ref.watch(currentPatientNotificationEnabledProvider);
     final fullName = user?.fullName.trim();
     final name =
         fullName != null && fullName.isNotEmpty ? fullName : 'Sarah Jenkins';
     final email = user?.email ?? 'sarah.jenkins@example.com';
+    final summaryValue = summary.valueOrNull;
+    final patient = summaryValue?.patient;
+    final profile = summaryValue?.profile;
+    final doctor = summaryValue?.doctor;
+    final facilityName = summaryValue?.facilityName;
+    final reminder = summaryValue?.medicationReminder;
+    final reminderEnabled =
+        _notificationOverride ?? notificationEnabled.valueOrNull ?? true;
+
+    if (summary.isLoading && summaryValue == null) {
+      return Scaffold(
+        backgroundColor: patientBg,
+        appBar: PatientTopBar(
+          title: 'Profile',
+          showBack: true,
+          onLeadingTap: () => context.go(AppRoutes.patientDashboard),
+        ),
+        body: const Center(
+          child: CircularProgressIndicator(color: patientTeal),
+        ),
+      );
+    }
+
+    if (summary.hasError && summaryValue == null) {
+      return Scaffold(
+        backgroundColor: patientBg,
+        appBar: PatientTopBar(
+          title: 'Profile',
+          showBack: true,
+          onLeadingTap: () => context.go(AppRoutes.patientDashboard),
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text(
+              summary.error.toString(),
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: patientMuted),
+            ),
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       backgroundColor: patientBg,
       appBar: PatientTopBar(
         title: 'Profile',
         showBack: true,
+        onLeadingTap: () => context.go(AppRoutes.patientDashboard),
         actions: [
           IconButton(
             onPressed: () {},
@@ -71,9 +127,9 @@ class PatientProfilePage extends ConsumerWidget {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  const Text(
-                    'Patient ID: MT-8942-A',
-                    style: TextStyle(color: patientMuted, fontSize: 15),
+                  Text(
+                    'Patient ID: ${patient?.patientCode ?? 'Generating...'}',
+                    style: const TextStyle(color: patientMuted, fontSize: 15),
                   ),
                   const SizedBox(height: 28),
                   Container(height: 1, color: patientBorder),
@@ -84,43 +140,51 @@ class PatientProfilePage extends ConsumerWidget {
                     value: email,
                   ),
                   const SizedBox(height: 22),
-                  const _InfoRow(
+                  _InfoRow(
                     icon: Icons.phone_outlined,
                     label: 'Phone',
-                    value: '+1 (555) 123-4567',
+                    value: profile?.phoneNumber?.trim().isNotEmpty == true
+                        ? profile!.phoneNumber!
+                        : 'Belum diisi',
                   ),
                   const SizedBox(height: 22),
-                  const _InfoRow(
+                  _InfoRow(
                     icon: Icons.home_outlined,
                     label: 'Address',
-                    value: '124 Maple Street\nSpringfield, IL 62704',
+                    value: patient?.address?.trim().isNotEmpty == true
+                        ? patient!.address!
+                        : 'Belum diisi',
                   ),
                 ],
               ),
             ),
             const SizedBox(height: 56),
-            const PatientCard(
-              padding: EdgeInsets.all(24),
+            PatientCard(
+              padding: const EdgeInsets.all(24),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _SectionHeader(
+                  const _SectionHeader(
                     icon: Icons.add_box_outlined,
                     title: 'Treatment Account',
                   ),
-                  SizedBox(height: 20),
+                  const SizedBox(height: 20),
                   _TreatmentAccountTile(
                     icon: Icons.business_rounded,
                     label: 'Primary Facility',
-                    title: 'Mercy General Hospital',
-                    subtitle: 'TB Specialty Clinic - Wing B',
+                    title: facilityName?.trim().isNotEmpty == true
+                        ? facilityName!
+                        : 'Assigned Care Team',
+                    subtitle: 'Primary treatment facility',
                   ),
-                  SizedBox(height: 18),
+                  const SizedBox(height: 18),
                   _TreatmentAccountTile(
                     icon: Icons.person,
                     label: 'Lead Clinician',
-                    title: 'Dr. Robert',
-                    subtitle: 'Pulmonologist',
+                    title: doctor?.fullName.trim().isNotEmpty == true
+                        ? doctor!.fullName
+                        : doctor?.email ?? 'Assigned Doctor',
+                    subtitle: 'Lead clinician',
                   ),
                 ],
               ),
@@ -141,28 +205,32 @@ class PatientProfilePage extends ConsumerWidget {
                       const Expanded(
                         child: _SettingsText(
                           title: 'Daily Reminders',
-                          subtitle: 'Medication logging alerts',
+                          subtitle: 'Show medication pop-up notifications',
                         ),
                       ),
                       Switch(
-                        value: true,
-                        onChanged: (_) {},
+                        value: reminderEnabled,
+                        onChanged: user == null || notificationEnabled.isLoading
+                            ? null
+                            : (value) => _updateReminderEnabled(
+                                  context,
+                                  ref,
+                                  user.id,
+                                  value,
+                                ),
                         activeThumbColor: Colors.white,
                         activeTrackColor: patientTeal,
                       ),
                     ],
                   ),
                   const _Divider(),
-                  const _SettingsValue(
+                  _SettingsValue(
                     title: 'Reminder Time',
                     subtitle: 'When to alert you',
-                    value: '08:00 AM',
-                  ),
-                  const _Divider(),
-                  const _SettingsValue(
-                    title: 'Alert Tone',
-                    subtitle: 'Sound for push notifications',
-                    value: 'Gentle Chime',
+                    value: _formatReminderTime(reminder?.reminderTime),
+                    onTap: user == null
+                        ? null
+                        : () => _pickReminderTime(context, ref, user.id),
                   ),
                 ],
               ),
@@ -196,6 +264,106 @@ class PatientProfilePage extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _updateReminderEnabled(
+    BuildContext context,
+    WidgetRef ref,
+    String userId,
+    bool enabled,
+  ) async {
+    setState(() => _notificationOverride = enabled);
+    await ref
+        .read(notificationPreferenceServiceProvider)
+        .setMedicationNotificationEnabled(
+          userId: userId,
+          enabled: enabled,
+        );
+
+    final summary = ref.read(currentPatientProfileSummaryProvider).valueOrNull;
+    if (summary != null) {
+      await _syncLocalMedicationNotification(
+        summary,
+        notificationsEnabled: enabled,
+      );
+    }
+
+    ref.invalidate(currentPatientNotificationEnabledProvider);
+  }
+
+  Future<void> _pickReminderTime(
+    BuildContext context,
+    WidgetRef ref,
+    String userId,
+  ) async {
+    final summary = ref.read(currentPatientProfileSummaryProvider).valueOrNull;
+    final current = summary?.medicationReminder.reminderTime;
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay(
+        hour: current?.hour ?? 8,
+        minute: current?.minute ?? 0,
+      ),
+    );
+    if (picked == null) return;
+
+    final reminderTime = DateTime(0, 1, 1, picked.hour, picked.minute);
+    final updated = await ref
+        .read(supabaseServiceProvider)
+        .updateMedicationReminderPreference(
+          userId: userId,
+          reminderTime: reminderTime,
+        );
+    final notificationsEnabled = await ref
+        .read(notificationPreferenceServiceProvider)
+        .isMedicationNotificationEnabled(userId);
+    await _syncLocalMedicationNotification(
+      updated,
+      notificationsEnabled: notificationsEnabled,
+    );
+    ref.invalidate(currentPatientProfileSummaryProvider);
+  }
+
+  Future<void> _syncLocalMedicationNotification(
+    PatientProfileSummary summary, {
+    required bool notificationsEnabled,
+  }) async {
+    final notificationId = summary.medicationReminder.id.hashCode;
+    if (!notificationsEnabled) {
+      await NotificationService.instance.cancel(notificationId);
+      return;
+    }
+
+    final reminderTime = summary.medicationReminder.reminderTime;
+    final now = DateTime.now();
+    var scheduled = DateTime(
+      now.year,
+      now.month,
+      now.day,
+      reminderTime.hour,
+      reminderTime.minute,
+    );
+    if (!scheduled.isAfter(now)) {
+      scheduled = scheduled.add(const Duration(days: 1));
+    }
+
+    await NotificationService.instance.cancel(notificationId);
+    await NotificationService.instance.scheduleReminderNotification(
+      id: notificationId,
+      title: 'Medication Reminder',
+      body: 'Time to take your TB medication.',
+      when: scheduled,
+      repeatsDaily: true,
+    );
+  }
+
+  String _formatReminderTime(DateTime? time) {
+    final value = time ?? DateTime(0, 1, 1, 8);
+    final hour = value.hour;
+    final minute = value.minute.toString().padLeft(2, '0');
+    final suffix = hour >= 12 ? 'PM' : 'AM';
+    final displayHour = hour % 12 == 0 ? 12 : hour % 12;
+    return '$displayHour:$minute $suffix';
   }
 }
 
@@ -349,28 +517,33 @@ class _SettingsValue extends StatelessWidget {
   final String title;
   final String subtitle;
   final String value;
+  final VoidCallback? onTap;
 
   const _SettingsValue({
     required this.title,
     required this.subtitle,
     required this.value,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(child: _SettingsText(title: title, subtitle: subtitle)),
-        Text(
-          value,
-          style: const TextStyle(
-            color: patientTeal,
-            fontSize: 15,
-            fontWeight: FontWeight.w600,
+    return InkWell(
+      onTap: onTap,
+      child: Row(
+        children: [
+          Expanded(child: _SettingsText(title: title, subtitle: subtitle)),
+          Text(
+            value,
+            style: const TextStyle(
+              color: patientTeal,
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+            ),
           ),
-        ),
-        const Icon(Icons.keyboard_arrow_down_rounded, color: patientTeal),
-      ],
+          const Icon(Icons.keyboard_arrow_down_rounded, color: patientTeal),
+        ],
+      ),
     );
   }
 }

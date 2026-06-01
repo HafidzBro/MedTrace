@@ -93,14 +93,40 @@ class DoctorService {
     final patient = await _resolvePatientRow(patientIdOrAuthUserId);
     if (patient == null) return null;
 
+    final doctorId = patient['doctor_id'] as String?;
+    if (doctorId == null || doctorId.isEmpty) return null;
+
     final doctor = await context.client
         .from('doctors')
-        .select('profiles(*)')
-        .eq('doctor_id', patient['doctor_id'])
+        .select('profile_id, profiles(*)')
+        .eq('doctor_id', doctorId)
         .maybeSingle();
     if (doctor == null) return null;
 
-    return UserModel.fromJson(doctor['profiles'] as Map<String, dynamic>);
+    final nestedProfile = doctor['profiles'];
+    if (nestedProfile is Map<String, dynamic>) {
+      return UserModel.fromJson(nestedProfile);
+    }
+
+    final profileId = doctor['profile_id'] as String?;
+    if (profileId == null || profileId.isEmpty) return null;
+    return profiles.getByProfileId(profileId);
+  }
+
+  Future<String?> getFacilityForPatient(String patientIdOrAuthUserId) async {
+    final patient = await _resolvePatientRow(patientIdOrAuthUserId);
+    if (patient == null) return null;
+
+    final doctorId = patient['doctor_id'] as String?;
+    if (doctorId == null || doctorId.isEmpty) return null;
+
+    final doctor = await context.client
+        .from('doctors')
+        .select('facility_name')
+        .eq('doctor_id', doctorId)
+        .maybeSingle();
+
+    return doctor?['facility_name'] as String?;
   }
 
   Future<Map<String, dynamic>?> _resolvePatientRow(

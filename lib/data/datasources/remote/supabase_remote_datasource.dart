@@ -13,6 +13,7 @@ import 'package:medtrace/data/models/therapy_model.dart';
 import 'package:medtrace/services/supabase/auth_service.dart';
 import 'package:medtrace/services/supabase/doctor_code_service.dart';
 import 'package:medtrace/services/supabase/doctor_service.dart';
+import 'package:medtrace/services/supabase/patient_service.dart';
 import 'package:medtrace/services/supabase/profile_service.dart';
 import 'package:medtrace/services/supabase/supabase_service_context.dart';
 import 'package:medtrace/services/supabase/therapy_service.dart';
@@ -25,6 +26,7 @@ class SupabaseRemoteDataSource {
   late final ProfileService profiles;
   late final DoctorService doctors;
   late final DoctorCodeService doctorCodes;
+  late final PatientService patients;
   late final AuthService auth;
   late final TherapyService therapies;
 
@@ -33,8 +35,9 @@ class SupabaseRemoteDataSource {
     profiles = ProfileService(serviceContext);
     doctors = DoctorService(serviceContext, profiles);
     doctorCodes = DoctorCodeService(serviceContext, doctors);
+    patients = PatientService(serviceContext, doctors);
     auth = AuthService(serviceContext, profiles, doctorCodes);
-    therapies = TherapyService(serviceContext, doctors);
+    therapies = TherapyService(serviceContext, doctors, patients);
   }
 
   // ============================================================
@@ -50,12 +53,34 @@ class SupabaseRemoteDataSource {
     required String password,
     required String doctorCode,
     required String fullName,
+    DateTime? dateOfBirth,
+    String? nik,
+    DateTime? diagnosisDate,
+    String? tbCaseCategory,
+    String? tbCaseDescription,
+    String? phoneNumber,
+    String? gender,
+    String? address,
+    double? latitude,
+    double? longitude,
+    double? locationAccuracy,
   }) {
     return auth.registerPatient(
       email: email,
       password: password,
       doctorCode: doctorCode,
       fullName: fullName,
+      dateOfBirth: dateOfBirth,
+      nik: nik,
+      diagnosisDate: diagnosisDate,
+      tbCaseCategory: tbCaseCategory,
+      tbCaseDescription: tbCaseDescription,
+      phoneNumber: phoneNumber,
+      gender: gender,
+      address: address,
+      latitude: latitude,
+      longitude: longitude,
+      locationAccuracy: locationAccuracy,
     );
   }
 

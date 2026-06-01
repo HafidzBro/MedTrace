@@ -9,6 +9,7 @@ class PatientRegistrationStep1Identity extends StatelessWidget {
   final TextEditingController emailController;
   final TextEditingController passwordController;
   final TextEditingController confirmPasswordController;
+  final TextEditingController nikController;
   final TextEditingController phoneController;
   final String? selectedGender;
   final DateTime? dateOfBirth;
@@ -26,6 +27,7 @@ class PatientRegistrationStep1Identity extends StatelessWidget {
     required this.emailController,
     required this.passwordController,
     required this.confirmPasswordController,
+    required this.nikController,
     required this.phoneController,
     required this.selectedGender,
     required this.dateOfBirth,
@@ -127,6 +129,25 @@ class PatientRegistrationStep1Identity extends StatelessWidget {
               validator: (value) {
                 if (value == null || value.isEmpty) {
                   return 'Confirm password is required';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 18),
+            RegistrationTextInput(
+              controller: nikController,
+              label: 'National Identity Number',
+              hint: '16-digit NIK',
+              icon: Icons.badge_outlined,
+              keyboardType: TextInputType.number,
+              maxLength: 16,
+              validator: (value) {
+                final nik = value?.trim() ?? '';
+                if (nik.isEmpty) {
+                  return 'National identity number is required';
+                }
+                if (!RegExp(r'^\d{16}$').hasMatch(nik)) {
+                  return 'NIK must be 16 digits';
                 }
                 return null;
               },

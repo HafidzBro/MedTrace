@@ -2,9 +2,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:medtrace/core/error/auth_error_mapper.dart';
 import 'package:medtrace/core/error/exceptions.dart';
+import 'package:medtrace/data/models/chatbot_conversation_model.dart';
+import 'package:medtrace/data/models/chatbot_log_model.dart';
 import 'package:medtrace/data/models/doctor_code_model.dart';
+import 'package:medtrace/data/models/medication_log_model.dart';
 import 'package:medtrace/data/models/profile_model.dart';
+import 'package:medtrace/services/device_location_service.dart';
+import 'package:medtrace/services/notification_preference_service.dart';
 import 'package:medtrace/services/pending_patient_registration_service.dart';
+import 'package:medtrace/services/supabase/dashboard_service.dart';
+import 'package:medtrace/services/supabase/medication_service.dart';
 import 'package:medtrace/services/supabase_service.dart';
 import 'package:medtrace/shared/theme/app_theme.dart';
 
@@ -19,9 +26,180 @@ final supabaseServiceProvider = Provider<SupabaseService>((ref) {
   return SupabaseService(client: client);
 });
 
+final currentPatientDashboardSummaryProvider =
+    FutureProvider<PatientDashboardSummary>((ref) async {
+  final user = ref.watch(authProvider).user;
+  if (user == null) {
+    throw StateError('No authenticated patient profile is available.');
+  }
+
+  final service = ref.watch(supabaseServiceProvider);
+  return service.dashboard.patientSummary(user.id);
+});
+
+final currentDoctorDashboardSummaryProvider =
+    FutureProvider<DoctorDashboardSummary>((ref) async {
+  final user = ref.watch(authProvider).user;
+  if (user == null) {
+    throw StateError('No authenticated doctor profile is available.');
+  }
+
+  final service = ref.watch(supabaseServiceProvider);
+  return service.dashboard.doctorSummary(user.id);
+});
+
+final currentPatientIntakePlanProvider =
+    FutureProvider<MedicationIntakePlan?>((ref) async {
+  final user = ref.watch(authProvider).user;
+  if (user == null) {
+    throw StateError('No authenticated patient profile is available.');
+  }
+
+  final service = ref.watch(supabaseServiceProvider);
+  return service.currentPatientIntakePlan(user.id);
+});
+
+final currentPatientAdherenceHistoryProvider =
+    FutureProvider<List<MedicationLogModel>>((ref) async {
+  final user = ref.watch(authProvider).user;
+  if (user == null) {
+    throw StateError('No authenticated patient profile is available.');
+  }
+
+  final service = ref.watch(supabaseServiceProvider);
+  return service.patientAdherenceHistory(user.id);
+});
+
+final currentPatientProfileSummaryProvider =
+    FutureProvider<PatientProfileSummary>((ref) async {
+  final user = ref.watch(authProvider).user;
+  if (user == null) {
+    throw StateError('No authenticated patient profile is available.');
+  }
+
+  final service = ref.watch(supabaseServiceProvider);
+  return service.patientProfileSummary(user.id);
+});
+
 final pendingPatientRegistrationServiceProvider =
     Provider<PendingPatientRegistrationService>((ref) {
   return const PendingPatientRegistrationService();
+});
+
+final deviceLocationServiceProvider = Provider<DeviceLocationService>((ref) {
+  return const DeviceLocationService();
+});
+
+final notificationPreferenceServiceProvider =
+    Provider<NotificationPreferenceService>((ref) {
+  return const NotificationPreferenceService();
+});
+
+final currentPatientNotificationEnabledProvider =
+    FutureProvider<bool>((ref) async {
+  final user = ref.watch(authProvider).user;
+  if (user == null) return true;
+
+  final service = ref.watch(notificationPreferenceServiceProvider);
+  return service.isMedicationNotificationEnabled(user.id);
+});
+
+class PatientChatbotState {
+  final bool isLoading;
+  final bool isSending;
+  final ChatbotConversation? conversation;
+  final List<ChatbotLogModel> messages;
+  final String? error;
+
+  const PatientChatbotState({
+    this.isLoading = false,
+    this.isSending = false,
+    this.conversation,
+    this.messages = const [],
+    this.error,
+  });
+
+  PatientChatbotState copyWith({
+    bool? isLoading,
+    bool? isSending,
+    Object? conversation = _unset,
+    List<ChatbotLogModel>? messages,
+    Object? error = _unset,
+  }) {
+    return PatientChatbotState(
+      isLoading: isLoading ?? this.isLoading,
+      isSending: isSending ?? this.isSending,
+      conversation: identical(conversation, _unset)
+          ? this.conversation
+          : conversation as ChatbotConversation?,
+      messages: messages ?? this.messages,
+      error: identical(error, _unset) ? this.error : error as String?,
+    );
+  }
+}
+
+class PatientChatbotNotifier extends StateNotifier<PatientChatbotState> {
+  final SupabaseService supabaseService;
+  final String patientId;
+
+  PatientChatbotNotifier({
+    required this.supabaseService,
+    required this.patientId,
+  }) : super(const PatientChatbotState());
+
+  Future<void> load() async {
+    try {
+      state = state.copyWith(isLoading: true, error: null);
+      final conversation =
+          await supabaseService.chatbot.latestConversation(patientId);
+      final messages = conversation == null
+          ? <ChatbotLogModel>[]
+          : await supabaseService.chatbot.listLogs(conversation.id);
+      state = state.copyWith(
+        isLoading: false,
+        conversation: conversation,
+        messages: messages,
+      );
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: e.toString());
+    }
+  }
+
+  Future<void> send(String message) async {
+    final trimmed = message.trim();
+    if (trimmed.isEmpty || state.isSending) return;
+
+    try {
+      state = state.copyWith(isSending: true, error: null);
+      final result = await supabaseService.chatbot.sendPatientMessage(
+        patientId: patientId,
+        message: trimmed,
+      );
+      state = state.copyWith(
+        isSending: false,
+        conversation: result.conversation,
+        messages: result.logs,
+      );
+    } catch (e) {
+      state = state.copyWith(isSending: false, error: e.toString());
+    }
+  }
+}
+
+final currentPatientChatbotProvider = StateNotifierProvider.autoDispose<
+    PatientChatbotNotifier, PatientChatbotState>((ref) {
+  final user = ref.watch(authProvider).user;
+  final service = ref.watch(supabaseServiceProvider);
+  if (user == null) {
+    throw StateError('No authenticated patient profile is available.');
+  }
+
+  final notifier = PatientChatbotNotifier(
+    supabaseService: service,
+    patientId: user.id,
+  );
+  notifier.load();
+  return notifier;
 });
 
 const _unset = Object();
@@ -102,9 +280,16 @@ class AuthNotifier extends StateNotifier<AuthState> {
     required String doctorCode,
     required String fullName,
     DateTime? dateOfBirth,
+    String? nik,
+    DateTime? diagnosisDate,
+    String? tbCaseCategory,
+    String? tbCaseDescription,
     String? phoneNumber,
     String? gender,
     String? address,
+    double? latitude,
+    double? longitude,
+    double? locationAccuracy,
   }) async {
     try {
       final normalizedEmail = email.trim().toLowerCase();
@@ -123,9 +308,16 @@ class AuthNotifier extends StateNotifier<AuthState> {
         doctorCode: normalizedDoctorCode,
         fullName: fullName,
         dateOfBirth: dateOfBirth,
+        nik: nik,
+        diagnosisDate: diagnosisDate,
+        tbCaseCategory: tbCaseCategory,
+        tbCaseDescription: tbCaseDescription,
         phoneNumber: phoneNumber,
         gender: gender,
         address: address,
+        latitude: latitude,
+        longitude: longitude,
+        locationAccuracy: locationAccuracy,
       );
 
       await supabaseService.logout();
@@ -142,10 +334,21 @@ class AuthNotifier extends StateNotifier<AuthState> {
           fullName: fullName.trim(),
           doctorCode: doctorCode.trim().toUpperCase(),
           dateOfBirth: dateOfBirth,
+          nik: nik?.trim().isEmpty == true ? null : nik?.trim(),
+          diagnosisDate: diagnosisDate,
+          tbCaseCategory: tbCaseCategory?.trim().isEmpty == true
+              ? null
+              : tbCaseCategory?.trim(),
+          tbCaseDescription: tbCaseDescription?.trim().isEmpty == true
+              ? null
+              : tbCaseDescription?.trim(),
           phoneNumber:
               phoneNumber?.trim().isEmpty == true ? null : phoneNumber?.trim(),
           gender: gender?.trim().isEmpty == true ? null : gender?.trim(),
           address: address?.trim().isEmpty == true ? null : address?.trim(),
+          latitude: latitude,
+          longitude: longitude,
+          locationAccuracy: locationAccuracy,
         ),
       );
       state = state.copyWith(
@@ -249,9 +452,16 @@ class AuthNotifier extends StateNotifier<AuthState> {
       fullName: pending.fullName,
       doctorCode: pending.doctorCode,
       dateOfBirth: pending.dateOfBirth,
+      nik: pending.nik,
+      diagnosisDate: pending.diagnosisDate,
+      tbCaseCategory: pending.tbCaseCategory,
+      tbCaseDescription: pending.tbCaseDescription,
       phoneNumber: pending.phoneNumber,
       gender: pending.gender,
       address: pending.address,
+      latitude: pending.latitude,
+      longitude: pending.longitude,
+      locationAccuracy: pending.locationAccuracy,
     );
 
     await pendingRegistrationService.deleteForEmail(email);

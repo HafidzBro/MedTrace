@@ -49,6 +49,50 @@ class ReminderService {
         .toList();
   }
 
+  Future<ReminderModel> ensureMedicationReminder({
+    required String patientId,
+    String? therapyId,
+    String? therapyPhaseId,
+    DateTime? reminderTime,
+  }) async {
+    final resolvedPatientId = await patients.resolvePatientId(patientId);
+    final existing = await context.client
+        .from('reminders')
+        .select()
+        .eq('patient_id', resolvedPatientId)
+        .eq('reminder_type', 'medication')
+        .order('created_at', ascending: false)
+        .limit(1)
+        .maybeSingle();
+
+    if (existing != null) {
+      return ReminderModel.fromJson(existing);
+    }
+
+    return create(
+      patientId: resolvedPatientId,
+      therapyId: therapyId,
+      therapyPhaseId: therapyPhaseId,
+      title: 'Medication Reminder',
+      description: 'Time to take your TB medication.',
+      reminderType: 'medication',
+      reminderTime: reminderTime ?? DateTime(0, 1, 1, 8),
+    );
+  }
+
+  Future<ReminderModel> updateMedicationReminder({
+    required String patientId,
+    DateTime? reminderTime,
+    bool? enabled,
+  }) async {
+    final reminder = await ensureMedicationReminder(patientId: patientId);
+    return update(
+      reminderId: reminder.id,
+      reminderTime: reminderTime,
+      status: enabled == null ? null : (enabled ? 'pending' : 'cancelled'),
+    );
+  }
+
   Future<ReminderModel> update({
     required String reminderId,
     String? title,

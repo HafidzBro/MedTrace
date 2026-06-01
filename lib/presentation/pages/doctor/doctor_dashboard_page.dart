@@ -1,13 +1,25 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:medtrace/presentation/pages/doctor/doctor_mockup_widgets.dart';
+import 'package:medtrace/presentation/providers/app_providers.dart';
 import 'package:medtrace/presentation/router/app_routes.dart';
 
-class DoctorDashboardPage extends StatelessWidget {
+class DoctorDashboardPage extends ConsumerWidget {
   const DoctorDashboardPage({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(authProvider).user;
+    final summary = ref.watch(currentDoctorDashboardSummaryProvider);
+    final data = summary.valueOrNull;
+    final doctorName = _doctorName(user?.fullName ?? 'Doctor');
+    final totalPatients = data?.totalPatients.toString() ?? '0';
+    final activeTherapies = data?.activeTherapies.toString() ?? '0';
+    final highPriority = data?.highPriorityAlerts.toString() ?? '0';
+    final recovered =
+        data?.therapies.where((therapy) => therapy.isCompleted).length ?? 0;
+
     return DoctorMockScaffold(
       currentIndex: 0,
       appBar: const DoctorTopBar(title: 'MedTrace', centeredTitle: true),
@@ -16,9 +28,9 @@ class DoctorDashboardPage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Good morning, Dr. Sarah',
-              style: TextStyle(
+            Text(
+              'Good morning, $doctorName',
+              style: const TextStyle(
                 color: doctorText,
                 fontSize: 26,
                 fontWeight: FontWeight.w800,
@@ -38,31 +50,31 @@ class DoctorDashboardPage extends StatelessWidget {
               crossAxisSpacing: 16,
               mainAxisSpacing: 16,
               childAspectRatio: 1.28,
-              children: const [
+              children: [
                 _KpiCard(
                   title: 'TOTAL PATIENTS',
-                  value: '142',
-                  subtitle: '+12 this month',
+                  value: summary.isLoading ? '...' : totalPatients,
+                  subtitle: 'Assigned patients',
                   icon: Icons.groups_rounded,
                 ),
                 _KpiCard(
                   title: 'ACTIVE\nTREATMENTS',
-                  value: '89',
-                  subtitle: '63% compliance rate',
+                  value: summary.isLoading ? '...' : activeTherapies,
+                  subtitle: 'Ongoing therapies',
                   icon: Icons.medical_services_rounded,
                   dark: true,
                 ),
                 _KpiCard(
                   title: 'AT RISK OF\nDEFAULT',
-                  value: '14',
+                  value: summary.isLoading ? '...' : highPriority,
                   subtitle: 'Requires immediate\naction',
                   icon: Icons.warning_rounded,
                   danger: true,
                 ),
                 _KpiCard(
                   title: 'RECOVERED',
-                  value: '39',
-                  subtitle: '+5 this week',
+                  value: summary.isLoading ? '...' : recovered.toString(),
+                  subtitle: 'Completed therapy',
                   icon: Icons.check_circle_rounded,
                 ),
               ],
@@ -93,33 +105,7 @@ class DoctorDashboardPage extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 18),
-                  const _FollowUpTile(
-                    initials: 'JD',
-                    name: 'John Doe',
-                    note: 'Missed 2 doses',
-                    badge: 'High Risk',
-                    badgeColor: doctorDangerSoft,
-                    badgeText: doctorDanger,
-                  ),
-                  const SizedBox(height: 12),
-                  const _FollowUpTile(
-                    initials: 'MG',
-                    name: 'Maria Garcia',
-                    note: 'Check-in overdue',
-                    badge: 'Medium Risk',
-                    badgeColor: doctorWarningSoft,
-                    badgeText: Color(0xFF8C4A1F),
-                    darkAvatar: true,
-                  ),
-                  const SizedBox(height: 12),
-                  const _FollowUpTile(
-                    initials: 'AK',
-                    name: 'Ahmed',
-                    note: 'Reported side effects',
-                    badge: 'Medium Risk',
-                    badgeColor: doctorWarningSoft,
-                    badgeText: Color(0xFF8C4A1F),
-                  ),
+                  ..._followUps(data),
                   const SizedBox(height: 20),
                   SizedBox(
                     width: double.infinity,
@@ -146,6 +132,46 @@ class DoctorDashboardPage extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  static String _doctorName(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) return 'Doctor';
+    return trimmed.startsWith('Dr.')
+        ? trimmed
+        : 'Dr. ${trimmed.split(RegExp(r'\s+')).first}';
+  }
+
+  static List<Widget> _followUps(dynamic data) {
+    final alerts = data?.alerts ?? const [];
+    if (alerts.isEmpty) {
+      return const [
+        _FollowUpTile(
+          initials: 'SJ',
+          name: 'Sarah Jenkins',
+          note: 'Seed patient ready for review',
+          badge: 'Active',
+          badgeColor: doctorMintSoft,
+          badgeText: doctorTeal,
+        ),
+        SizedBox(height: 12),
+      ];
+    }
+
+    return alerts.take(3).map<Widget>((alert) {
+      final high = alert.severity == 'high' || alert.severity == 'critical';
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: _FollowUpTile(
+          initials: 'SJ',
+          name: 'Sarah Jenkins',
+          note: alert.description ?? alert.type,
+          badge: high ? 'High Risk' : 'Medium Risk',
+          badgeColor: high ? doctorDangerSoft : doctorWarningSoft,
+          badgeText: high ? doctorDanger : const Color(0xFF8C4A1F),
+        ),
+      );
+    }).toList();
   }
 }
 
@@ -269,7 +295,6 @@ class _FollowUpTile extends StatelessWidget {
   final String badge;
   final Color badgeColor;
   final Color badgeText;
-  final bool darkAvatar;
 
   const _FollowUpTile({
     required this.initials,
@@ -278,7 +303,6 @@ class _FollowUpTile extends StatelessWidget {
     required this.badge,
     required this.badgeColor,
     required this.badgeText,
-    this.darkAvatar = false,
   });
 
   @override
@@ -295,7 +319,7 @@ class _FollowUpTile extends StatelessWidget {
           DoctorAvatar(
             initials: initials,
             radius: 20,
-            color: darkAvatar ? const Color(0xFF0B1320) : doctorNeutral,
+            color: doctorNeutral,
           ),
           const SizedBox(width: 14),
           Expanded(

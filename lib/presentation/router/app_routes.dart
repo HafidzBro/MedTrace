@@ -8,6 +8,7 @@ class AppRoutes {
   // Patient
   static const String patientDashboard = '/patient-dashboard';
   static const String treatment = '/patient/treatment';
+  static const String adherenceHistory = '/patient/adherence-history';
   static const String medicationSchedule = '/patient/medications';
   static const String chatbot = '/patient/chatbot';
   static const String tbMap = '/patient/map';

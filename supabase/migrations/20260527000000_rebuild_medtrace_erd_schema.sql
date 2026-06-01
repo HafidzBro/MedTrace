@@ -97,6 +97,7 @@ CREATE TABLE public.tb_cases (
   diagnosis_date DATE NOT NULL,
   tb_category TEXT,
   tb_type TEXT,
+  description TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -199,7 +200,8 @@ CREATE TABLE public.reminders (
   reminder_type TEXT NOT NULL DEFAULT 'custom' CHECK (reminder_type IN ('medication', 'appointment', 'checkup', 'custom')),
   reminder_time TIME NOT NULL,
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'sent', 'cancelled')),
-  sent_at TIMESTAMPTZ
+  sent_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE public.alerts (

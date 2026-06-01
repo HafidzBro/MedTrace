@@ -18,10 +18,18 @@ class AuthService {
     required String doctorCode,
     required String fullName,
     DateTime? dateOfBirth,
+    String? nik,
+    DateTime? diagnosisDate,
+    String? tbCaseCategory,
+    String? tbCaseDescription,
     String? phoneNumber,
     String? gender,
     String? address,
+    double? latitude,
+    double? longitude,
+    double? locationAccuracy,
   }) async {
+    final _ = locationAccuracy;
     final normalizedEmail = email.trim().toLowerCase();
     final code = await doctorCodes.validate(doctorCode.trim().toUpperCase());
 
@@ -50,9 +58,16 @@ class AuthService {
       fullName: fullName,
       doctorCode: code.code,
       dateOfBirth: dateOfBirth,
+      nik: nik,
+      diagnosisDate: diagnosisDate,
+      tbCaseCategory: tbCaseCategory,
+      tbCaseDescription: tbCaseDescription,
       phoneNumber: phoneNumber,
       gender: gender,
       address: address,
+      latitude: latitude,
+      longitude: longitude,
+      locationAccuracy: locationAccuracy,
     );
   }
 
@@ -62,10 +77,18 @@ class AuthService {
     required String fullName,
     required String doctorCode,
     DateTime? dateOfBirth,
+    String? nik,
+    DateTime? diagnosisDate,
+    String? tbCaseCategory,
+    String? tbCaseDescription,
     String? phoneNumber,
     String? gender,
     String? address,
+    double? latitude,
+    double? longitude,
+    double? locationAccuracy,
   }) async {
+    final _ = locationAccuracy;
     final profile = await context.client.rpc(
       'complete_patient_registration',
       params: {
@@ -93,6 +116,9 @@ class AuthService {
     if (dateOfBirth != null) {
       patientUpdates['birth_date'] = context.toDateOnly(dateOfBirth);
     }
+    if (nik?.trim().isNotEmpty == true) {
+      patientUpdates['nik'] = nik!.trim();
+    }
     if (gender?.trim().isNotEmpty == true) {
       patientUpdates['gender'] = gender!.trim();
     }
@@ -106,7 +132,65 @@ class AuthService {
           .eq('profile_id', user.profileId);
     }
 
+    if (diagnosisDate != null || (latitude != null && longitude != null)) {
+      final patient = await context.client
+          .from('patients')
+          .select('patient_id, patient_code')
+          .eq('profile_id', user.profileId)
+          .single();
+
+      final patientId = patient['patient_id'] as String;
+      if ((patient['patient_code'] as String?)?.trim().isNotEmpty != true) {
+        await context.client
+            .from('patients')
+            .update({'patient_code': _generatePatientCode(patientId)}).eq(
+                'patient_id', patientId);
+      }
+
+      if (diagnosisDate != null) {
+        final tbCase = await context.client
+            .from('tb_cases')
+            .insert({
+              'patient_id': patientId,
+              'diagnosis_date': context.toDateOnly(diagnosisDate),
+              'tb_category': tbCaseCategory,
+              'description': tbCaseDescription?.trim().isEmpty == true
+                  ? null
+                  : tbCaseDescription?.trim(),
+            })
+            .select('tb_case_id')
+            .single();
+
+        await context.client.rpc(
+          'create_default_patient_therapy',
+          params: {
+            'p_patient_id': patientId,
+            'p_tb_case_id': tbCase['tb_case_id'],
+            'p_description': tbCaseDescription?.trim().isEmpty == true
+                ? null
+                : tbCaseDescription?.trim(),
+          },
+        );
+      }
+
+      if (latitude != null && longitude != null) {
+        await context.client.from('patient_locations').insert({
+          'patient_id': patientId,
+          'latitude': latitude,
+          'longitude': longitude,
+          'address': address,
+          'is_current': true,
+          'recorded_at': DateTime.now().toIso8601String(),
+        });
+      }
+    }
+
     return profiles.getByAuthUserId(userId);
+  }
+
+  String _generatePatientCode(String patientId) {
+    final compact = patientId.replaceAll('-', '').toUpperCase();
+    return 'MT-${compact.substring(0, 4)}-${compact.substring(compact.length - 4)}';
   }
 
   Future<void> resendPatientVerificationEmail(String email) async {
