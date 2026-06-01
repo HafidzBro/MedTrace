@@ -2,6 +2,7 @@ import 'package:logger/logger.dart';
 import 'package:medtrace/data/models/doctor_model.dart';
 import 'package:medtrace/data/models/doctor_code_model.dart';
 import 'package:medtrace/data/models/medication_log_model.dart';
+import 'package:medtrace/data/models/patient_location_model.dart';
 import 'package:medtrace/data/models/patient_model.dart';
 import 'package:medtrace/data/models/profile_model.dart';
 import 'package:medtrace/data/models/reminder_model.dart';
@@ -216,6 +217,29 @@ class SupabaseService {
     );
   }
 
+  Future<DoctorMapSummary> doctorMapSummary(String doctorId) async {
+    final dashboardSummary = await dashboard.doctorSummary(doctorId);
+    final patientIds = dashboardSummary.directoryItems
+        .map((item) => item.patient.patientId)
+        .toList();
+    final currentLocations = await locations.listCurrentForPatients(patientIds);
+    final locationsByPatient = <String, PatientLocationModel>{};
+    for (final location in currentLocations) {
+      locationsByPatient.putIfAbsent(location.patientId, () => location);
+    }
+
+    final cases = dashboardSummary.directoryItems
+        .map((item) {
+          final location = locationsByPatient[item.patient.patientId];
+          if (location == null) return null;
+          return DoctorMapCase(item: item, location: location);
+        })
+        .whereType<DoctorMapCase>()
+        .toList();
+
+    return DoctorMapSummary(cases: cases);
+  }
+
   Future<TreatmentModel> resetTherapyProgress(String treatmentId) {
     return therapies.resetProgress(treatmentId);
   }
@@ -421,6 +445,51 @@ class PatientDetailSummary {
     required this.recentLogs,
     required this.statusHistory,
   });
+}
+
+class DoctorMapSummary {
+  final List<DoctorMapCase> cases;
+
+  const DoctorMapSummary({required this.cases});
+
+  int get totalInView => cases.length;
+  int get highRiskCount => cases.where((item) => item.isHighRisk).length;
+  int get activeCount => cases.where((item) => item.isActive).length;
+  int get completedCount => cases.where((item) => item.isCompleted).length;
+}
+
+class DoctorMapCase {
+  final DoctorPatientDirectoryItem item;
+  final PatientLocationModel location;
+
+  const DoctorMapCase({
+    required this.item,
+    required this.location,
+  });
+
+  bool get isCompleted => item.therapy?.isCompleted ?? false;
+  bool get isActive => (item.therapy?.isOngoing ?? false) && !isHighRisk;
+  bool get isHighRisk {
+    final therapy = item.therapy;
+    return item.missedCount > 0 ||
+        (therapy?.isDefaulted ?? false) ||
+        ((therapy?.isOngoing ?? false) &&
+            (therapy?.adherencePercentage ?? 100) < 80);
+  }
+
+  String get patientName {
+    final fullName = item.profile.fullName.trim();
+    if (fullName.isNotEmpty) return fullName;
+    final email = item.profile.email.trim();
+    if (email.isNotEmpty) return email;
+    return 'Patient';
+  }
+
+  String get patientCode {
+    final value = item.patient.patientCode;
+    if (value != null && value.trim().isNotEmpty) return value.trim();
+    return item.patient.patientId;
+  }
 }
 
 class DoctorProfileSummary {

@@ -1,96 +1,291 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:medtrace/presentation/pages/doctor/doctor_mockup_widgets.dart';
+import 'package:medtrace/presentation/providers/app_providers.dart';
+import 'package:medtrace/services/supabase_service.dart';
 
-class DoctorMapPage extends StatelessWidget {
+enum _MapStatusFilter { all, active, highRisk, completed }
+
+class DoctorMapPage extends ConsumerStatefulWidget {
   const DoctorMapPage({super.key});
 
   @override
+  ConsumerState<DoctorMapPage> createState() => _DoctorMapPageState();
+}
+
+class _DoctorMapPageState extends ConsumerState<DoctorMapPage> {
+  late final MapController _mapController;
+  _MapStatusFilter _statusFilter = _MapStatusFilter.all;
+  bool _summaryExpanded = false;
+  String? _focusedLocationId;
+
+  @override
+  void initState() {
+    super.initState();
+    _mapController = MapController();
+  }
+
+  @override
+  void dispose() {
+    _mapController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final summaryState = ref.watch(currentDoctorMapSummaryProvider);
+    final summary = summaryState.valueOrNull;
+    final cases = _filteredCases(summary?.cases ?? const []);
+    final center = _mapCenter(cases, summary?.cases ?? const []);
+    _focusInitialMarker(cases, summary?.cases ?? const []);
+
     return DoctorMockScaffold(
       currentIndex: 2,
       appBar: const DoctorTopBar(
-          title: 'MedTrace', leadingIcon: Icons.person_outline),
+        title: 'MedTrace',
+        leadingIcon: Icons.person_outline,
+      ),
       backgroundColor: const Color(0xFFB8BDBD),
       extendBody: false,
       child: Stack(
         children: [
           Positioned.fill(
-            child: CustomPaint(
-              painter: const _MapPatternPainter(),
-              child: Container(color: Colors.white.withValues(alpha: 0.1)),
-            ),
-          ),
-          const Positioned(
-            left: 36,
-            top: 24,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: FlutterMap(
+              mapController: _mapController,
+              options: MapOptions(
+                initialCenter: center,
+                initialZoom: cases.isEmpty ? 5.2 : 12,
+                minZoom: 3,
+                maxZoom: 18,
+              ),
               children: [
-                _MapFilter(
-                    icon: Icons.filter_alt_outlined, label: 'Therapy Status'),
-                SizedBox(height: 12),
-                _MapFilter(icon: Icons.location_on_outlined, label: 'Region'),
+                TileLayer(
+                  urlTemplate:
+                      'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+                  subdomains: const ['a', 'b', 'c'],
+                  userAgentPackageName: 'com.medtrace.app',
+                ),
+                CircleLayer(circles: _buildCircles(cases)),
+                MarkerLayer(markers: _buildMarkers(cases)),
               ],
             ),
           ),
           Positioned(
-            right: 24,
-            top: 24,
-            child: Container(
-              width: 140,
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(8),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.08),
-                    blurRadius: 12,
-                  ),
-                ],
-              ),
-              child: const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('LEGEND',
-                      style: TextStyle(color: doctorMuted, fontSize: 12)),
-                  SizedBox(height: 12),
-                  _LegendDot(color: doctorDanger, label: 'Defaulted'),
-                  SizedBox(height: 10),
-                  _LegendDot(color: doctorTeal2, label: 'Active'),
-                  SizedBox(height: 10),
-                  _LegendDot(color: doctorMint, label: 'Completed'),
-                ],
-              ),
+            left: 20,
+            top: 18,
+            child: _StatusFilterChip(
+              value: _statusFilter,
+              onChanged: (value) =>
+                  _selectStatusFilter(value, summary?.cases ?? const []),
             ),
           ),
           const Positioned(
-              left: 180,
-              top: 260,
-              child: _MapCluster(count: '3', color: doctorDanger)),
-          const Positioned(
-              left: 110,
-              top: 390,
-              child: _MapCluster(count: '', color: doctorTeal2, small: true)),
-          const Positioned(
-              right: 118,
-              top: 440,
-              child: _MapCluster(count: '12', color: doctorTeal2)),
+            right: 16,
+            top: 18,
+            child: _MapLegend(),
+          ),
+          if (summaryState.isLoading)
+            Container(
+              color: Colors.white.withValues(alpha: 0.32),
+              child: const Center(
+                child: CircularProgressIndicator(color: doctorTeal),
+              ),
+            ),
+          if (summaryState.hasError && summary == null)
+            Center(
+              child: _MapMessageCard(
+                icon: Icons.error_outline_rounded,
+                title: 'Unable to load map',
+                message: summaryState.error.toString(),
+                onRetry: () => ref.invalidate(currentDoctorMapSummaryProvider),
+              ),
+            )
+          else if (!summaryState.isLoading && (summary?.cases.isEmpty ?? true))
+            Center(
+              child: _MapMessageCard(
+                icon: Icons.location_off_outlined,
+                title: 'No current patient locations',
+                message:
+                    'Patient markers will appear after patients share their current treatment location.',
+                onRetry: () => ref.invalidate(currentDoctorMapSummaryProvider),
+              ),
+            )
+          else if (!summaryState.isLoading && cases.isEmpty)
+            Center(
+              child: _MapMessageCard(
+                icon: Icons.filter_alt_off_outlined,
+                title: 'No cases match this filter',
+                message: 'Try another therapy status filter.',
+                onRetry: () => _selectStatusFilter(
+                  _MapStatusFilter.all,
+                  summary?.cases ?? const [],
+                ),
+              ),
+            ),
+          Positioned(
+            right: 18,
+            bottom: _summaryExpanded ? 206 : 84,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _MapActionButton(
+                  heroTag: 'north_doctor_map',
+                  icon: Icons.explore_outlined,
+                  tooltip: 'North up',
+                  onPressed: () => _mapController.rotate(0),
+                ),
+                const SizedBox(height: 10),
+                _MapActionButton(
+                  heroTag: 'refresh_doctor_map',
+                  icon: Icons.refresh_rounded,
+                  tooltip: 'Refresh map',
+                  onPressed: () =>
+                      ref.invalidate(currentDoctorMapSummaryProvider),
+                ),
+              ],
+            ),
+          ),
           Positioned(
             left: 0,
             right: 0,
             bottom: 0,
-            child: Container(
-              padding: const EdgeInsets.fromLTRB(36, 12, 36, 92),
-              decoration: const BoxDecoration(
-                color: doctorBg,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(10)),
-                border: Border(top: BorderSide(color: doctorBorder)),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
+            child: _VisibleCasesSummary(
+              expanded: _summaryExpanded,
+              total: cases.length,
+              highRisk: cases.where((item) => item.isHighRisk).length,
+              active: cases.where((item) => item.isActive).length,
+              completed: cases.where((item) => item.isCompleted).length,
+              onToggle: () =>
+                  setState(() => _summaryExpanded = !_summaryExpanded),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<DoctorMapCase> _filteredCases(List<DoctorMapCase> cases) {
+    return switch (_statusFilter) {
+      _MapStatusFilter.active => cases.where((item) => item.isActive).toList(),
+      _MapStatusFilter.highRisk =>
+        cases.where((item) => item.isHighRisk).toList(),
+      _MapStatusFilter.completed =>
+        cases.where((item) => item.isCompleted).toList(),
+      _MapStatusFilter.all => cases,
+    };
+  }
+
+  void _focusInitialMarker(
+    List<DoctorMapCase> visibleCases,
+    List<DoctorMapCase> allCases,
+  ) {
+    final focusCases = visibleCases.isNotEmpty ? visibleCases : allCases;
+    if (focusCases.isEmpty) return;
+
+    final target = focusCases.first.location;
+    if (_focusedLocationId == target.patientLocationId) return;
+    _focusedLocationId = target.patientLocationId;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _mapController.move(
+        LatLng(target.latitude, target.longitude),
+        13,
+      );
+    });
+  }
+
+  void _selectStatusFilter(
+    _MapStatusFilter value,
+    List<DoctorMapCase> allCases,
+  ) {
+    setState(() => _statusFilter = value);
+
+    final selectedCases = _casesForFilter(value, allCases);
+    final focusCases = selectedCases.isNotEmpty ? selectedCases : allCases;
+    if (focusCases.isEmpty) return;
+
+    final target = focusCases.first.location;
+    _focusedLocationId = target.patientLocationId;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _mapController.move(
+        LatLng(target.latitude, target.longitude),
+        13,
+      );
+    });
+  }
+
+  List<DoctorMapCase> _casesForFilter(
+    _MapStatusFilter value,
+    List<DoctorMapCase> cases,
+  ) {
+    return switch (value) {
+      _MapStatusFilter.active => cases.where((item) => item.isActive).toList(),
+      _MapStatusFilter.highRisk =>
+        cases.where((item) => item.isHighRisk).toList(),
+      _MapStatusFilter.completed =>
+        cases.where((item) => item.isCompleted).toList(),
+      _MapStatusFilter.all => cases,
+    };
+  }
+
+  List<Marker> _buildMarkers(List<DoctorMapCase> cases) {
+    return cases.map((item) {
+      final color = _caseColor(item);
+      return Marker(
+        point: LatLng(item.location.latitude, item.location.longitude),
+        width: 42,
+        height: 42,
+        alignment: Alignment.center,
+        child: GestureDetector(
+          onTap: () => _showCaseDetails(context, item),
+          child: _MapCluster(
+            count: item.isHighRisk ? '${item.item.missedCount}' : '',
+            color: color,
+            small: !item.isHighRisk,
+          ),
+        ),
+      );
+    }).toList();
+  }
+
+  List<CircleMarker> _buildCircles(List<DoctorMapCase> cases) {
+    return cases
+        .map(
+          (item) => CircleMarker(
+            point: LatLng(item.location.latitude, item.location.longitude),
+            radius: 90,
+            useRadiusInMeter: true,
+            color: _caseColor(item).withValues(alpha: 0.14),
+            borderColor: _caseColor(item).withValues(alpha: 0.22),
+            borderStrokeWidth: 1,
+          ),
+        )
+        .toList();
+  }
+
+  void _showCaseDetails(BuildContext context, DoctorMapCase item) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 18, 24, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
                     width: 48,
                     height: 5,
                     decoration: BoxDecoration(
@@ -98,42 +293,86 @@ class DoctorMapPage extends StatelessWidget {
                       borderRadius: BorderRadius.circular(999),
                     ),
                   ),
-                  const SizedBox(height: 28),
-                  const Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          'Visible Cases Summary',
-                          style: TextStyle(
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    _MapCluster(
+                        count: '', color: _caseColor(item), small: true),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            item.patientName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
                               color: doctorText,
                               fontSize: 20,
-                              fontWeight: FontWeight.w800),
-                        ),
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            _caseStatusLabel(item),
+                            style: TextStyle(
+                              color: _caseColor(item),
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
                       ),
-                      Icon(Icons.keyboard_arrow_up_rounded, color: doctorTeal),
-                    ],
-                  ),
-                  const SizedBox(height: 28),
-                  const Row(
-                    children: [
-                      Expanded(
-                        child: _SummaryBox(value: '24', label: 'Total in View'),
-                      ),
-                      SizedBox(width: 16),
-                      Expanded(
-                        child: _SummaryBox(
-                          value: '3',
-                          label: 'High Risk',
-                          danger: true,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                _DetailLine(
+                    label: 'Patient ID', value: _shortId(item.patientCode)),
+                _DetailLine(
+                  label: 'Location',
+                  value: item.location.address ?? 'Current location recorded',
+                ),
+                _DetailLine(
+                  label: 'Updated',
+                  value: DateFormat('d MMM yyyy, HH:mm')
+                      .format(item.location.recordedAt),
+                ),
+              ],
             ),
           ),
-        ],
+        );
+      },
+    );
+  }
+}
+
+class _StatusFilterChip extends StatelessWidget {
+  final _MapStatusFilter value;
+  final ValueChanged<_MapStatusFilter> onChanged;
+
+  const _StatusFilterChip({
+    required this.value,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<_MapStatusFilter>(
+      initialValue: value,
+      onSelected: onChanged,
+      itemBuilder: (context) => const [
+        PopupMenuItem(value: _MapStatusFilter.all, child: Text('All Statuses')),
+        PopupMenuItem(value: _MapStatusFilter.active, child: Text('Active')),
+        PopupMenuItem(
+            value: _MapStatusFilter.highRisk, child: Text('High Risk')),
+        PopupMenuItem(
+            value: _MapStatusFilter.completed, child: Text('Completed')),
+      ],
+      child: _MapFilter(
+        icon: Icons.filter_alt_outlined,
+        label: _statusFilterLabel(value),
       ),
     );
   }
@@ -148,7 +387,7 @@ class _MapFilter extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(999),
@@ -162,14 +401,60 @@ class _MapFilter extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 18, color: doctorTeal),
-          const SizedBox(width: 8),
-          Text(label,
+          Icon(icon, size: 16, color: doctorTeal),
+          const SizedBox(width: 6),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 118),
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: const TextStyle(
-                  color: doctorText,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600)),
-          const Icon(Icons.keyboard_arrow_down_rounded, color: doctorMuted),
+                color: doctorText,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          const Icon(
+            Icons.keyboard_arrow_down_rounded,
+            color: doctorMuted,
+            size: 18,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MapLegend extends StatelessWidget {
+  const _MapLegend();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 116,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 12,
+          ),
+        ],
+      ),
+      child: const Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('LEGEND', style: TextStyle(color: doctorMuted, fontSize: 10)),
+          SizedBox(height: 8),
+          _LegendDot(color: doctorDanger, label: 'High Risk'),
+          SizedBox(height: 7),
+          _LegendDot(color: doctorTeal2, label: 'Active'),
+          SizedBox(height: 7),
+          _LegendDot(color: doctorMint, label: 'Completed'),
         ],
       ),
     );
@@ -187,11 +472,19 @@ class _LegendDot extends StatelessWidget {
     return Row(
       children: [
         Container(
-            width: 12,
-            height: 12,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
-        const SizedBox(width: 8),
-        Text(label, style: const TextStyle(color: doctorText, fontSize: 13)),
+          width: 9,
+          height: 9,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: doctorText, fontSize: 11),
+          ),
+        ),
       ],
     );
   }
@@ -210,23 +503,225 @@ class _MapCluster extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final size = small ? 30.0 : 48.0;
+    final size = small ? 22.0 : 36.0;
+    final text = count == '0' ? '' : count;
     return Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
         color: color,
         shape: BoxShape.circle,
-        border: Border.all(color: Colors.white, width: 3),
+        border: Border.all(color: Colors.white, width: 2),
         boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.18), blurRadius: 8),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.18), blurRadius: 6),
         ],
       ),
       alignment: Alignment.center,
       child: Text(
-        count,
+        text,
         style: const TextStyle(
-            color: Colors.white, fontSize: 14, fontWeight: FontWeight.w800),
+          color: Colors.white,
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+  }
+}
+
+class _MapActionButton extends StatelessWidget {
+  final String heroTag;
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onPressed;
+
+  const _MapActionButton({
+    required this.heroTag,
+    required this.icon,
+    required this.tooltip,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return FloatingActionButton.small(
+      heroTag: heroTag,
+      tooltip: tooltip,
+      backgroundColor: Colors.white,
+      foregroundColor: doctorTeal,
+      elevation: 4,
+      onPressed: onPressed,
+      child: Icon(icon, size: 22),
+    );
+  }
+}
+
+class _VisibleCasesSummary extends StatelessWidget {
+  final bool expanded;
+  final int total;
+  final int highRisk;
+  final int active;
+  final int completed;
+  final VoidCallback onToggle;
+
+  const _VisibleCasesSummary({
+    required this.expanded,
+    required this.total,
+    required this.highRisk,
+    required this.active,
+    required this.completed,
+    required this.onToggle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
+      padding: EdgeInsets.fromLTRB(28, 10, 28, expanded ? 18 : 12),
+      decoration: const BoxDecoration(
+        color: doctorBg,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(10)),
+        border: Border(top: BorderSide(color: doctorBorder)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 44,
+            height: 4,
+            decoration: BoxDecoration(
+              color: doctorBorder,
+              borderRadius: BorderRadius.circular(999),
+            ),
+          ),
+          const SizedBox(height: 12),
+          InkWell(
+            borderRadius: BorderRadius.circular(8),
+            onTap: onToggle,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 3),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      expanded ? 'Filtered Cases Summary' : 'Visible Cases',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: doctorText,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  _CompactMetric(value: total, label: 'Total'),
+                  const SizedBox(width: 10),
+                  _CompactMetric(value: highRisk, label: 'Risk', danger: true),
+                  const SizedBox(width: 6),
+                  Icon(
+                    expanded
+                        ? Icons.keyboard_arrow_down_rounded
+                        : Icons.keyboard_arrow_up_rounded,
+                    color: doctorTeal,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          AnimatedCrossFade(
+            firstChild: const SizedBox.shrink(),
+            secondChild: Column(
+              children: [
+                const SizedBox(height: 18),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _SummaryBox(
+                        value: '$total',
+                        label: 'Total in View',
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: _SummaryBox(
+                        value: '$highRisk',
+                        label: 'High Risk',
+                        danger: true,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _SmallSummary(label: 'Active', value: active),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _SmallSummary(
+                        label: 'Completed',
+                        value: completed,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            crossFadeState:
+                expanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+            duration: const Duration(milliseconds: 180),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CompactMetric extends StatelessWidget {
+  final int value;
+  final String label;
+  final bool danger;
+
+  const _CompactMetric({
+    required this.value,
+    required this.label,
+    this.danger = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 30,
+      padding: const EdgeInsets.symmetric(horizontal: 9),
+      decoration: BoxDecoration(
+        color: danger ? doctorDangerSoft : Colors.white,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: danger ? const Color(0xFFFFB1B1) : doctorBorder,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            '$value',
+            style: TextStyle(
+              color: danger ? doctorDanger : doctorTeal,
+              fontWeight: FontWeight.w800,
+              fontSize: 13,
+            ),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              color: danger ? doctorDanger : doctorMuted,
+              fontSize: 11,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -251,7 +746,8 @@ class _SummaryBox extends StatelessWidget {
         color: danger ? doctorDangerSoft : Colors.white,
         borderRadius: BorderRadius.circular(6),
         border: Border.all(
-            color: danger ? const Color(0xFFFF9D9D) : const Color(0xFFB7C3C3)),
+          color: danger ? const Color(0xFFFF9D9D) : const Color(0xFFB7C3C3),
+        ),
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -278,69 +774,179 @@ class _SummaryBox extends StatelessWidget {
   }
 }
 
-class _MapPatternPainter extends CustomPainter {
-  const _MapPatternPainter();
+class _SmallSummary extends StatelessWidget {
+  final String label;
+  final int value;
+
+  const _SmallSummary({required this.label, required this.value});
 
   @override
-  void paint(Canvas canvas, Size size) {
-    final bg = Paint()..color = const Color(0xFFB6BBBB);
-    canvas.drawRect(Offset.zero & size, bg);
-
-    final road = Paint()
-      ..color = Colors.white.withValues(alpha: 0.23)
-      ..strokeWidth = 4
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-    final minor = Paint()
-      ..color = Colors.white.withValues(alpha: 0.14)
-      ..strokeWidth = 1.4
-      ..style = PaintingStyle.stroke;
-
-    void drawPath(List<Offset> points, Paint paint) {
-      final path = Path()..moveTo(points.first.dx, points.first.dy);
-      for (final p in points.skip(1)) {
-        path.lineTo(p.dx, p.dy);
-      }
-      canvas.drawPath(path, paint);
-    }
-
-    drawPath([
-      Offset(0, size.height * 0.18),
-      Offset(size.width * 0.32, size.height * 0.32),
-      Offset(size.width * 0.55, size.height * 0.55),
-      Offset(size.width, size.height * 0.72),
-    ], road);
-    drawPath([
-      Offset(size.width * 0.85, 0),
-      Offset(size.width * 0.64, size.height * 0.24),
-      Offset(size.width * 0.48, size.height * 0.5),
-      Offset(size.width * 0.28, size.height),
-    ], road);
-    drawPath([
-      Offset(0, size.height * 0.62),
-      Offset(size.width * 0.34, size.height * 0.48),
-      Offset(size.width * 0.72, size.height * 0.28),
-      Offset(size.width, size.height * 0.2),
-    ], road);
-
-    for (var i = 0; i < 16; i++) {
-      final y = size.height * (0.1 + i * 0.045);
-      drawPath([
-        Offset(size.width * 0.05, y),
-        Offset(size.width * 0.35, y + 24),
-        Offset(size.width * 0.75, y - 8),
-      ], minor);
-    }
-    for (var i = 0; i < 10; i++) {
-      final x = size.width * (0.05 + i * 0.1);
-      drawPath([
-        Offset(x, 0),
-        Offset(x + 38, size.height * 0.45),
-        Offset(x - 18, size.height),
-      ], minor);
-    }
+  Widget build(BuildContext context) {
+    return Container(
+      height: 38,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: doctorBorder),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(color: doctorMuted, fontSize: 13),
+            ),
+          ),
+          Text(
+            '$value',
+            style: const TextStyle(
+              color: doctorTeal,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
   }
+}
+
+class _MapMessageCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String message;
+  final VoidCallback onRetry;
+
+  const _MapMessageCard({
+    required this.icon,
+    required this.title,
+    required this.message,
+    required this.onRetry,
+  });
 
   @override
-  bool shouldRepaint(covariant _MapPatternPainter oldDelegate) => false;
+  Widget build(BuildContext context) {
+    return Container(
+      width: 286,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 16,
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: doctorTeal, size: 32),
+          const SizedBox(height: 10),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: doctorText,
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: doctorMuted, fontSize: 13),
+          ),
+          const SizedBox(height: 14),
+          TextButton.icon(
+            onPressed: onRetry,
+            icon: const Icon(Icons.refresh_rounded),
+            label: const Text('Refresh'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DetailLine extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _DetailLine({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 92,
+            child: Text(
+              label,
+              style: const TextStyle(color: doctorMuted, fontSize: 13),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(
+                color: doctorText,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+LatLng _mapCenter(List<DoctorMapCase> cases, List<DoctorMapCase> fallback) {
+  final source = cases.isNotEmpty ? cases : fallback;
+  if (source.isEmpty) return const LatLng(-2.5489, 118.0149);
+
+  final lat =
+      source.map((item) => item.location.latitude).reduce((a, b) => a + b) /
+          source.length;
+  final lng =
+      source.map((item) => item.location.longitude).reduce((a, b) => a + b) /
+          source.length;
+  return LatLng(lat, lng);
+}
+
+Color _caseColor(DoctorMapCase item) {
+  if (item.isHighRisk) return doctorDanger;
+  if (item.isCompleted) return doctorMint;
+  return doctorTeal2;
+}
+
+String _caseStatusLabel(DoctorMapCase item) {
+  if (item.isHighRisk) {
+    return item.item.missedCount > 0
+        ? 'High Risk (${item.item.missedCount} missed)'
+        : 'High Risk';
+  }
+  if (item.isCompleted) return 'Completed';
+  return 'Active';
+}
+
+String _statusFilterLabel(_MapStatusFilter value) {
+  return switch (value) {
+    _MapStatusFilter.active => 'Active',
+    _MapStatusFilter.highRisk => 'High Risk',
+    _MapStatusFilter.completed => 'Completed',
+    _MapStatusFilter.all => 'Therapy Status',
+  };
+}
+
+String _shortId(String value) {
+  final compact = value.replaceAll('-', '').toUpperCase();
+  if (compact.length <= 8) return compact;
+  return 'TBM-${compact.substring(compact.length - 6)}';
 }

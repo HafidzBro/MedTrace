@@ -48,6 +48,17 @@ final currentDoctorDashboardSummaryProvider =
   return service.dashboard.doctorSummary(user.id);
 });
 
+final currentDoctorMapSummaryProvider =
+    FutureProvider<DoctorMapSummary>((ref) async {
+  final user = ref.watch(authProvider).user;
+  if (user == null) {
+    throw StateError('No authenticated doctor profile is available.');
+  }
+
+  final service = ref.watch(supabaseServiceProvider);
+  return service.doctorMapSummary(user.id);
+});
+
 final currentDoctorProfileSummaryProvider =
     FutureProvider<DoctorProfileSummary>((ref) async {
   final user = ref.watch(authProvider).user;
