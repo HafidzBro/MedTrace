@@ -180,7 +180,7 @@ class DoctorTopBar extends StatelessWidget implements PreferredSizeWidget {
       leadingWidth: showBack ? 52 : 72,
       leading: showBack
           ? IconButton(
-              onPressed: () => context.pop(),
+              onPressed: onLeadingTap ?? () => context.pop(),
               icon: const Icon(Icons.arrow_back, color: doctorText),
             )
           : Padding(

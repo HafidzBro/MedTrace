@@ -16,6 +16,8 @@ class AlertModel extends Equatable {
   final bool actionTaken;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final String? patientName;
+  final String? patientEmail;
 
   const AlertModel({
     required String id,
@@ -31,10 +33,17 @@ class AlertModel extends Equatable {
     this.actionTaken = false,
     required this.createdAt,
     required this.updatedAt,
+    this.patientName,
+    this.patientEmail,
   })  : alertId = id,
         type = alertType ?? '';
 
   factory AlertModel.fromJson(Map<String, dynamic> json) {
+    final patient = json['patients'];
+    final patientProfile = patient is Map<String, dynamic>
+        ? patient['profiles'] as Map<String, dynamic>?
+        : null;
+
     return AlertModel(
       id: json['alert_id'] ?? json['id'] ?? '',
       doctorId: json['doctor_id'],
@@ -49,6 +58,8 @@ class AlertModel extends Equatable {
       actionTaken: json['action_taken'] ?? false,
       createdAt: parseDateTime(json['created_at']),
       updatedAt: parseDateTime(json['updated_at']),
+      patientName: patientProfile?['full_name'],
+      patientEmail: patientProfile?['email'],
     );
   }
 
@@ -72,6 +83,8 @@ class AlertModel extends Equatable {
         'action_taken': actionTaken,
         'created_at': createdAt.toIso8601String(),
         'updated_at': updatedAt.toIso8601String(),
+        'patient_name': patientName,
+        'patient_email': patientEmail,
       };
 
   @override
@@ -89,5 +102,7 @@ class AlertModel extends Equatable {
         actionTaken,
         createdAt,
         updatedAt,
+        patientName,
+        patientEmail,
       ];
 }
