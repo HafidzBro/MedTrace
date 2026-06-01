@@ -1,4 +1,5 @@
 import 'package:logger/logger.dart';
+import 'package:medtrace/data/models/doctor_model.dart';
 import 'package:medtrace/data/models/doctor_code_model.dart';
 import 'package:medtrace/data/models/medication_log_model.dart';
 import 'package:medtrace/data/models/patient_model.dart';
@@ -159,6 +160,19 @@ class SupabaseService {
 
   Future<UserModel> getUser(String userId) => profiles.getByAuthUserId(userId);
 
+  Future<DoctorProfileSummary> doctorProfileSummary(
+      String idOrAuthUserId) async {
+    UserModel profile;
+    try {
+      profile = await profiles.getByProfileId(idOrAuthUserId);
+    } catch (_) {
+      profile = await profiles.getByAuthUserId(idOrAuthUserId);
+    }
+
+    final doctor = await doctors.getByAuthUserId(idOrAuthUserId);
+    return DoctorProfileSummary(profile: profile, doctor: doctor);
+  }
+
   Future<PatientProfileSummary> patientProfileSummary(String userId) async {
     final profile = await profiles.getByAuthUserId(userId);
     final patient = await patients.getByAuthUserId(userId);
@@ -230,6 +244,10 @@ class SupabaseService {
       maxUses: maxUses,
       expiryDays: expiryDays,
     );
+  }
+
+  Future<List<DoctorCodeModel>> listDoctorCodes(String doctorId) {
+    return doctorCodes.listForDoctor(doctorId);
   }
 
   Future<DoctorCodeModel> validateDoctorCode(String code) {
@@ -348,4 +366,14 @@ class PatientProfileSummary {
   });
 
   bool get remindersEnabled => medicationReminder.status != 'cancelled';
+}
+
+class DoctorProfileSummary {
+  final UserModel profile;
+  final DoctorModel? doctor;
+
+  const DoctorProfileSummary({
+    required this.profile,
+    required this.doctor,
+  });
 }

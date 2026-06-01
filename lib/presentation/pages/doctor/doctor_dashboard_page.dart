@@ -22,7 +22,11 @@ class DoctorDashboardPage extends ConsumerWidget {
 
     return DoctorMockScaffold(
       currentIndex: 0,
-      appBar: const DoctorTopBar(title: 'MedTrace', centeredTitle: true),
+      appBar: DoctorTopBar(
+        title: 'MedTrace',
+        centeredTitle: true,
+        onLeadingTap: () => context.go(AppRoutes.doctorProfile),
+      ),
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(32, 30, 32, 104),
         child: Column(
