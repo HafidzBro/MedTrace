@@ -1,6 +1,7 @@
 import 'package:medtrace/core/error/exceptions.dart';
 import 'package:medtrace/data/models/doctor_code_model.dart';
 import 'package:medtrace/data/models/doctor_model.dart';
+import 'package:medtrace/data/models/patient_model.dart';
 import 'package:medtrace/data/models/profile_model.dart';
 import 'package:medtrace/services/supabase/profile_service.dart';
 import 'package:medtrace/services/supabase/supabase_service_context.dart';
@@ -108,6 +109,23 @@ class DoctorService {
     }).toList();
   }
 
+  Future<List<DoctorPatientRecord>> getPatientRecords(String doctorId) async {
+    final resolvedDoctorId = await resolveDoctorId(doctorId);
+    final response = await context.client
+        .from('patients')
+        .select('*, profiles(*)')
+        .eq('doctor_id', resolvedDoctorId)
+        .order('created_at', ascending: false);
+
+    return (response as List).map((row) {
+      final data = row as Map<String, dynamic>;
+      return DoctorPatientRecord(
+        patient: PatientModel.fromJson(data),
+        profile: UserModel.fromJson(data['profiles'] as Map<String, dynamic>),
+      );
+    }).toList();
+  }
+
   Future<UserModel?> getDoctorForPatient(String patientIdOrAuthUserId) async {
     final patient = await _resolvePatientRow(patientIdOrAuthUserId);
     if (patient == null) return null;
@@ -164,4 +182,14 @@ class DoctorService {
         .maybeSingle();
     return byUser;
   }
+}
+
+class DoctorPatientRecord {
+  final PatientModel patient;
+  final UserModel profile;
+
+  const DoctorPatientRecord({
+    required this.patient,
+    required this.profile,
+  });
 }

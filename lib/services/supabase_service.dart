@@ -5,7 +5,9 @@ import 'package:medtrace/data/models/medication_log_model.dart';
 import 'package:medtrace/data/models/patient_model.dart';
 import 'package:medtrace/data/models/profile_model.dart';
 import 'package:medtrace/data/models/reminder_model.dart';
+import 'package:medtrace/data/models/tb_case_model.dart';
 import 'package:medtrace/data/models/therapy_model.dart';
+import 'package:medtrace/data/models/therapy_status_history_model.dart';
 import 'package:medtrace/services/supabase/alert_service.dart';
 import 'package:medtrace/services/supabase/auth_service.dart';
 import 'package:medtrace/services/supabase/chatbot_service.dart';
@@ -191,6 +193,33 @@ class SupabaseService {
     );
   }
 
+  Future<PatientDetailSummary> patientDetailSummary(String patientId) async {
+    final patient = await patients.getById(patientId);
+    final profile = await patients.getProfile(patient.id);
+    final cases = await tbCases.listForPatient(patient.id);
+    final therapy = await therapies.getLatestPatientTreatment(patient.id);
+    final plan =
+        therapy == null ? null : await medications.currentIntakePlan(therapy);
+    final logs = await medicationLogs.listForPatient(patient.id);
+    final statusHistory = therapy == null
+        ? <TherapyStatusHistoryModel>[]
+        : await therapies.listStatusHistory(therapy.id);
+
+    return PatientDetailSummary(
+      patient: patient,
+      profile: profile,
+      tbCase: cases.isEmpty ? null : cases.first,
+      therapy: therapy,
+      intakePlan: plan,
+      recentLogs: logs.take(7).toList(),
+      statusHistory: statusHistory,
+    );
+  }
+
+  Future<TreatmentModel> resetTherapyProgress(String treatmentId) {
+    return therapies.resetProgress(treatmentId);
+  }
+
   Future<PatientProfileSummary> updateMedicationReminderPreference({
     required String userId,
     DateTime? reminderTime,
@@ -282,6 +311,10 @@ class SupabaseService {
     return therapies.getPatientTreatment(patientId);
   }
 
+  Future<TreatmentModel?> getLatestPatientTreatment(String patientId) {
+    return therapies.getLatestPatientTreatment(patientId);
+  }
+
   Future<List<TreatmentModel>> getDoctorPatientsTreatments(String doctorId) {
     return therapies.getDoctorPatientsTreatments(doctorId);
   }
@@ -337,6 +370,7 @@ class SupabaseService {
     required String treatmentId,
     String? phase,
     String? status,
+    String? historyStatus,
     double? adherencePercentage,
     String? notes,
   }) {
@@ -344,6 +378,7 @@ class SupabaseService {
       treatmentId: treatmentId,
       phase: phase,
       status: status,
+      historyStatus: historyStatus,
       adherencePercentage: adherencePercentage,
       notes: notes,
     );
@@ -366,6 +401,26 @@ class PatientProfileSummary {
   });
 
   bool get remindersEnabled => medicationReminder.status != 'cancelled';
+}
+
+class PatientDetailSummary {
+  final PatientModel patient;
+  final UserModel profile;
+  final TbCaseModel? tbCase;
+  final TreatmentModel? therapy;
+  final MedicationIntakePlan? intakePlan;
+  final List<MedicationLogModel> recentLogs;
+  final List<TherapyStatusHistoryModel> statusHistory;
+
+  const PatientDetailSummary({
+    required this.patient,
+    required this.profile,
+    required this.tbCase,
+    required this.therapy,
+    required this.intakePlan,
+    required this.recentLogs,
+    required this.statusHistory,
+  });
 }
 
 class DoctorProfileSummary {

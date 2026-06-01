@@ -103,6 +103,16 @@ final currentPatientProfileSummaryProvider =
   return service.patientProfileSummary(user.id);
 });
 
+final patientDetailSummaryProvider =
+    FutureProvider.family<PatientDetailSummary, String>((ref, patientId) async {
+  if (patientId.trim().isEmpty) {
+    throw StateError('No patient id is available.');
+  }
+
+  final service = ref.watch(supabaseServiceProvider);
+  return service.patientDetailSummary(patientId);
+});
+
 final pendingPatientRegistrationServiceProvider =
     Provider<PendingPatientRegistrationService>((ref) {
   return const PendingPatientRegistrationService();
