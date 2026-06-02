@@ -18,6 +18,9 @@ class TreatmentDetailsPage extends ConsumerWidget {
     final therapy = summary.valueOrNull?.therapy;
     final plan = intakePlan.valueOrNull;
     final isLoading = summary.isLoading || intakePlan.isLoading;
+    final daysOnTherapy = therapy?.treatmentDaysElapsed ?? 0;
+    final therapyCompleted =
+        therapy?.isCompleted == true || daysOnTherapy >= 180;
 
     return PatientMockScaffold(
       currentIndex: 1,
@@ -25,14 +28,11 @@ class TreatmentDetailsPage extends ConsumerWidget {
         title: 'My Progress',
         leadingIcon: Icons.person,
         actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 18),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(22),
-              onTap: () => context.go(AppRoutes.patientProfile),
-              child: const PatientAvatar(icon: Icons.person, radius: 18),
-            ),
+          IconButton(
+            onPressed: () => context.go(AppRoutes.patientNotifications),
+            icon: const Icon(Icons.notifications_none_rounded),
           ),
+          const SizedBox(width: 14),
         ],
       ),
       child: SingleChildScrollView(
@@ -50,8 +50,10 @@ class TreatmentDetailsPage extends ConsumerWidget {
             else ...[
               _CurrentStatusCard(
                 adherence: summary.valueOrNull?.adherencePercentage ?? 0,
-                monthLabel: _monthLabel(therapy?.treatmentDaysElapsed ?? 0),
+                monthLabel:
+                    therapyCompleted ? 'Completed' : _monthLabel(daysOnTherapy),
                 hasTherapy: therapy != null,
+                isCompleted: therapyCompleted,
               ),
               const SizedBox(height: 32),
               _PhaseCard(
@@ -62,8 +64,10 @@ class TreatmentDetailsPage extends ConsumerWidget {
             const SizedBox(height: 32),
             const SectionTitle('Your Journey'),
             const SizedBox(height: 24),
-            const _JourneyCard(
-              state: _JourneyState.completed,
+            _JourneyCard(
+              state: therapy == null
+                  ? _JourneyState.locked
+                  : _JourneyState.completed,
               label: 'Completed',
               when: 'Week 0',
               title: 'Initial Screening',
@@ -72,38 +76,99 @@ class TreatmentDetailsPage extends ConsumerWidget {
             ),
             const SizedBox(height: 20),
             _JourneyCard(
-              state:
-                  therapy == null ? _JourneyState.locked : _JourneyState.active,
-              label: 'In Progress',
-              when: _monthLabel(therapy?.treatmentDaysElapsed ?? 0),
-              title: plan?.phaseName ?? 'Treatment Phase',
-              body: plan?.instructionLabel ??
-                  'Your active treatment phase will appear after therapy starts.',
+              state: _phaseState(
+                hasTherapy: therapy != null,
+                days: daysOnTherapy,
+                startDay: 0,
+                endDay: 60,
+              ),
+              label: _phaseLabel(
+                hasTherapy: therapy != null,
+                days: daysOnTherapy,
+                startDay: 0,
+                endDay: 60,
+              ),
+              when: 'Month 1-2',
+              title: 'Intensive Phase',
+              body:
+                  'Four-drug daily regimen: Rifampicin, Isoniazid, Pyrazinamide, and Ethambutol.',
             ),
             const SizedBox(height: 20),
             _JourneyCard(
-              state: (therapy?.treatmentDaysElapsed ?? 0) >= 60
-                  ? _JourneyState.active
-                  : _JourneyState.upcoming,
-              label: 'Upcoming',
-              when: 'Month 2',
-              title: 'Phase Transition',
+              state: _phaseState(
+                hasTherapy: therapy != null,
+                days: daysOnTherapy,
+                startDay: 60,
+                endDay: 180,
+              ),
+              label: _phaseLabel(
+                hasTherapy: therapy != null,
+                days: daysOnTherapy,
+                startDay: 60,
+                endDay: 180,
+              ),
+              when: 'Month 3-6',
+              title: 'Continuation Phase',
               body:
-                  'Assessment to transition from Intensive to Continuation phase based on lab results.',
+                  'Two-drug daily regimen: Rifampicin and Isoniazid until therapy completion.',
             ),
             const SizedBox(height: 20),
-            const _JourneyCard(
-              state: _JourneyState.locked,
-              label: 'Locked',
+            _JourneyCard(
+              state: therapyCompleted
+                  ? _JourneyState.completed
+                  : therapy == null
+                      ? _JourneyState.locked
+                      : _JourneyState.upcoming,
+              label: therapyCompleted
+                  ? 'Completed'
+                  : therapy == null
+                      ? 'Locked'
+                      : 'Upcoming',
               when: 'Month 6',
               title: 'Treatment Completion',
               body:
-                  'Final evaluation and confirmation of successful therapy completion.',
+                  'Treatment is completed after 180 therapy days and final clinical review.',
             ),
           ],
         ),
       ),
     );
+  }
+
+  _JourneyState _phaseState({
+    required bool hasTherapy,
+    required int days,
+    required int startDay,
+    required int endDay,
+  }) {
+    if (!hasTherapy) return _JourneyState.locked;
+    if (days >= endDay) return _JourneyState.completed;
+    if (days >= startDay) return _JourneyState.active;
+    return _JourneyState.upcoming;
+  }
+
+  String _phaseLabel({
+    required bool hasTherapy,
+    required int days,
+    required int startDay,
+    required int endDay,
+  }) {
+    final state = _phaseState(
+      hasTherapy: hasTherapy,
+      days: days,
+      startDay: startDay,
+      endDay: endDay,
+    );
+    switch (state) {
+      case _JourneyState.completed:
+        return 'Completed';
+      case _JourneyState.active:
+        return 'In Progress';
+      case _JourneyState.upcoming:
+        return 'Upcoming';
+      case _JourneyState.locked:
+        return 'Locked';
+    }
   }
 
   String _monthLabel(int days) {
@@ -117,11 +182,13 @@ class _CurrentStatusCard extends StatelessWidget {
   final double adherence;
   final String monthLabel;
   final bool hasTherapy;
+  final bool isCompleted;
 
   const _CurrentStatusCard({
     required this.adherence,
     required this.monthLabel,
     required this.hasTherapy,
+    required this.isCompleted,
   });
 
   @override
@@ -160,22 +227,26 @@ class _CurrentStatusCard extends StatelessWidget {
                 runSpacing: 8,
                 children: [
                   PatientChip(
-                    label: hasTherapy
-                        ? adherence >= 80
-                            ? 'On Track'
-                            : adherence >= 60
-                                ? 'Needs Attention'
-                                : 'At Risk'
-                        : 'Not Started',
-                    icon: hasTherapy
-                        ? adherence >= 60
-                            ? Icons.check_circle
-                            : Icons.warning_amber_rounded
-                        : Icons.hourglass_empty_rounded,
-                    color: hasTherapy && adherence >= 60
+                    label: isCompleted
+                        ? 'Completed'
+                        : hasTherapy
+                            ? adherence >= 80
+                                ? 'On Track'
+                                : adherence >= 60
+                                    ? 'Needs Attention'
+                                    : 'At Risk'
+                            : 'Not Started',
+                    icon: isCompleted
+                        ? Icons.check_circle
+                        : hasTherapy
+                            ? adherence >= 60
+                                ? Icons.check_circle
+                                : Icons.warning_amber_rounded
+                            : Icons.hourglass_empty_rounded,
+                    color: (hasTherapy && adherence >= 60) || isCompleted
                         ? const Color(0xFFDDF3E5)
                         : const Color(0xFFFFE7D6),
-                    textColor: hasTherapy && adherence >= 60
+                    textColor: (hasTherapy && adherence >= 60) || isCompleted
                         ? const Color(0xFF177C38)
                         : const Color(0xFFAD4B00),
                   ),
@@ -188,7 +259,9 @@ class _CurrentStatusCard extends StatelessWidget {
               const SizedBox(height: 10),
               Text(
                 hasTherapy
-                    ? 'Your treatment progress is calculated from therapy start date and daily medication logs.'
+                    ? isCompleted
+                        ? 'Your treatment has reached the planned 180-day completion point.'
+                        : 'Your treatment progress is calculated from therapy start date and daily medication logs.'
                     : 'Your therapy has not started yet. Your care team will configure the treatment plan.',
                 style: const TextStyle(
                   color: Color(0xFF50585C),

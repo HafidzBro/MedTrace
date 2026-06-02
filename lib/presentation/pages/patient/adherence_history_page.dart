@@ -17,14 +17,9 @@ class AdherenceHistoryPage extends ConsumerWidget {
       currentIndex: 1,
       appBar: PatientTopBar(
         title: 'My Adherence',
-        leadingIcon: Icons.person,
-        actions: [
-          IconButton(
-            onPressed: () => context.go(AppRoutes.reminders),
-            icon: const Icon(Icons.notifications_none_rounded),
-            color: patientTeal,
-          ),
-        ],
+        showBack: true,
+        onLeadingTap: () => context.go(AppRoutes.patientDashboard),
+        actions: const [SizedBox(width: 12)],
       ),
       child: history.when(
         loading: () => const Center(

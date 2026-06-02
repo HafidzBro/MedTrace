@@ -2,6 +2,7 @@ import 'package:logger/logger.dart';
 import 'package:medtrace/data/models/doctor_model.dart';
 import 'package:medtrace/data/models/doctor_code_model.dart';
 import 'package:medtrace/data/models/medication_log_model.dart';
+import 'package:medtrace/data/models/notification_model.dart';
 import 'package:medtrace/data/models/patient_location_model.dart';
 import 'package:medtrace/data/models/patient_model.dart';
 import 'package:medtrace/data/models/profile_model.dart';
@@ -192,6 +193,17 @@ class SupabaseService {
       facilityName: facilityName,
       medicationReminder: reminder,
     );
+  }
+
+  Future<List<NotificationModel>> patientNotifications(String userId) async {
+    final profile = await profiles.getByAuthUserId(userId);
+    return notificationData.listForProfile(profile.id);
+  }
+
+  Future<NotificationModel> markPatientNotificationRead(
+    String notificationId,
+  ) {
+    return notificationData.markRead(notificationId);
   }
 
   Future<PatientDetailSummary> patientDetailSummary(String patientId) async {

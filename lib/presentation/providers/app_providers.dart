@@ -6,6 +6,7 @@ import 'package:medtrace/data/models/chatbot_conversation_model.dart';
 import 'package:medtrace/data/models/chatbot_log_model.dart';
 import 'package:medtrace/data/models/doctor_code_model.dart';
 import 'package:medtrace/data/models/medication_log_model.dart';
+import 'package:medtrace/data/models/notification_model.dart';
 import 'package:medtrace/data/models/profile_model.dart';
 import 'package:medtrace/services/device_location_service.dart';
 import 'package:medtrace/services/notification_preference_service.dart';
@@ -112,6 +113,17 @@ final currentPatientProfileSummaryProvider =
 
   final service = ref.watch(supabaseServiceProvider);
   return service.patientProfileSummary(user.id);
+});
+
+final currentPatientNotificationsProvider =
+    FutureProvider<List<NotificationModel>>((ref) async {
+  final user = ref.watch(authProvider).user;
+  if (user == null) {
+    throw StateError('No authenticated patient profile is available.');
+  }
+
+  final service = ref.watch(supabaseServiceProvider);
+  return service.patientNotifications(user.id);
 });
 
 final patientDetailSummaryProvider =

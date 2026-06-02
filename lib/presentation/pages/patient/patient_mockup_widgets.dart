@@ -189,7 +189,7 @@ class PatientTopBar extends StatelessWidget implements PreferredSizeWidget {
       actions: actions ??
           [
             IconButton(
-              onPressed: () {},
+              onPressed: () => context.go(AppRoutes.patientNotifications),
               icon: const Icon(Icons.notifications_none_rounded),
             ),
             const SizedBox(width: 10),
