@@ -153,6 +153,7 @@ class DoctorTopBar extends StatelessWidget implements PreferredSizeWidget {
   final bool centeredTitle;
   final bool showBack;
   final List<Widget>? actions;
+  final VoidCallback? onLeadingTap;
 
   const DoctorTopBar({
     super.key,
@@ -161,6 +162,7 @@ class DoctorTopBar extends StatelessWidget implements PreferredSizeWidget {
     this.centeredTitle = false,
     this.showBack = false,
     this.actions,
+    this.onLeadingTap,
   });
 
   @override
@@ -178,12 +180,17 @@ class DoctorTopBar extends StatelessWidget implements PreferredSizeWidget {
       leadingWidth: showBack ? 52 : 72,
       leading: showBack
           ? IconButton(
-              onPressed: () => context.pop(),
+              onPressed: onLeadingTap ?? () => context.pop(),
               icon: const Icon(Icons.arrow_back, color: doctorText),
             )
           : Padding(
               padding: const EdgeInsets.only(left: 28),
-              child: DoctorAvatar(icon: leadingIcon, radius: 21),
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap:
+                    onLeadingTap ?? () => context.go(AppRoutes.doctorProfile),
+                child: DoctorAvatar(icon: leadingIcon, radius: 21),
+              ),
             ),
       titleSpacing: showBack ? 0 : 10,
       title: Text(

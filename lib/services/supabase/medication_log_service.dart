@@ -47,6 +47,22 @@ class MedicationLogService {
         .toList();
   }
 
+  Future<List<MedicationLogModel>> listForPatients(
+    List<String> patientIds,
+  ) async {
+    if (patientIds.isEmpty) return [];
+
+    final response = await context.client
+        .from('medication_logs')
+        .select()
+        .filter('patient_id', 'in', '(${patientIds.join(',')})')
+        .order('scheduled_at', ascending: false);
+
+    return (response as List)
+        .map((row) => MedicationLogModel.fromJson(row as Map<String, dynamic>))
+        .toList();
+  }
+
   Future<List<MedicationLogModel>> listForPatientBetween({
     required String patientId,
     required DateTime start,

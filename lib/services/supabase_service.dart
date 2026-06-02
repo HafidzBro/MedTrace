@@ -1,10 +1,14 @@
 import 'package:logger/logger.dart';
+import 'package:medtrace/data/models/doctor_model.dart';
 import 'package:medtrace/data/models/doctor_code_model.dart';
 import 'package:medtrace/data/models/medication_log_model.dart';
+import 'package:medtrace/data/models/patient_location_model.dart';
 import 'package:medtrace/data/models/patient_model.dart';
 import 'package:medtrace/data/models/profile_model.dart';
 import 'package:medtrace/data/models/reminder_model.dart';
+import 'package:medtrace/data/models/tb_case_model.dart';
 import 'package:medtrace/data/models/therapy_model.dart';
+import 'package:medtrace/data/models/therapy_status_history_model.dart';
 import 'package:medtrace/services/supabase/alert_service.dart';
 import 'package:medtrace/services/supabase/auth_service.dart';
 import 'package:medtrace/services/supabase/chatbot_service.dart';
@@ -159,6 +163,19 @@ class SupabaseService {
 
   Future<UserModel> getUser(String userId) => profiles.getByAuthUserId(userId);
 
+  Future<DoctorProfileSummary> doctorProfileSummary(
+      String idOrAuthUserId) async {
+    UserModel profile;
+    try {
+      profile = await profiles.getByProfileId(idOrAuthUserId);
+    } catch (_) {
+      profile = await profiles.getByAuthUserId(idOrAuthUserId);
+    }
+
+    final doctor = await doctors.getByAuthUserId(idOrAuthUserId);
+    return DoctorProfileSummary(profile: profile, doctor: doctor);
+  }
+
   Future<PatientProfileSummary> patientProfileSummary(String userId) async {
     final profile = await profiles.getByAuthUserId(userId);
     final patient = await patients.getByAuthUserId(userId);
@@ -175,6 +192,56 @@ class SupabaseService {
       facilityName: facilityName,
       medicationReminder: reminder,
     );
+  }
+
+  Future<PatientDetailSummary> patientDetailSummary(String patientId) async {
+    final patient = await patients.getById(patientId);
+    final profile = await patients.getProfile(patient.id);
+    final cases = await tbCases.listForPatient(patient.id);
+    final therapy = await therapies.getLatestPatientTreatment(patient.id);
+    final plan =
+        therapy == null ? null : await medications.currentIntakePlan(therapy);
+    final logs = await medicationLogs.listForPatient(patient.id);
+    final statusHistory = therapy == null
+        ? <TherapyStatusHistoryModel>[]
+        : await therapies.listStatusHistory(therapy.id);
+
+    return PatientDetailSummary(
+      patient: patient,
+      profile: profile,
+      tbCase: cases.isEmpty ? null : cases.first,
+      therapy: therapy,
+      intakePlan: plan,
+      recentLogs: logs.take(7).toList(),
+      statusHistory: statusHistory,
+    );
+  }
+
+  Future<DoctorMapSummary> doctorMapSummary(String doctorId) async {
+    final dashboardSummary = await dashboard.doctorSummary(doctorId);
+    final patientIds = dashboardSummary.directoryItems
+        .map((item) => item.patient.patientId)
+        .toList();
+    final currentLocations = await locations.listCurrentForPatients(patientIds);
+    final locationsByPatient = <String, PatientLocationModel>{};
+    for (final location in currentLocations) {
+      locationsByPatient.putIfAbsent(location.patientId, () => location);
+    }
+
+    final cases = dashboardSummary.directoryItems
+        .map((item) {
+          final location = locationsByPatient[item.patient.patientId];
+          if (location == null) return null;
+          return DoctorMapCase(item: item, location: location);
+        })
+        .whereType<DoctorMapCase>()
+        .toList();
+
+    return DoctorMapSummary(cases: cases);
+  }
+
+  Future<TreatmentModel> resetTherapyProgress(String treatmentId) {
+    return therapies.resetProgress(treatmentId);
   }
 
   Future<PatientProfileSummary> updateMedicationReminderPreference({
@@ -232,6 +299,10 @@ class SupabaseService {
     );
   }
 
+  Future<List<DoctorCodeModel>> listDoctorCodes(String doctorId) {
+    return doctorCodes.listForDoctor(doctorId);
+  }
+
   Future<DoctorCodeModel> validateDoctorCode(String code) {
     return doctorCodes.validate(code);
   }
@@ -262,6 +333,10 @@ class SupabaseService {
 
   Future<TreatmentModel?> getPatientTreatment(String patientId) {
     return therapies.getPatientTreatment(patientId);
+  }
+
+  Future<TreatmentModel?> getLatestPatientTreatment(String patientId) {
+    return therapies.getLatestPatientTreatment(patientId);
   }
 
   Future<List<TreatmentModel>> getDoctorPatientsTreatments(String doctorId) {
@@ -319,6 +394,7 @@ class SupabaseService {
     required String treatmentId,
     String? phase,
     String? status,
+    String? historyStatus,
     double? adherencePercentage,
     String? notes,
   }) {
@@ -326,6 +402,7 @@ class SupabaseService {
       treatmentId: treatmentId,
       phase: phase,
       status: status,
+      historyStatus: historyStatus,
       adherencePercentage: adherencePercentage,
       notes: notes,
     );
@@ -348,4 +425,79 @@ class PatientProfileSummary {
   });
 
   bool get remindersEnabled => medicationReminder.status != 'cancelled';
+}
+
+class PatientDetailSummary {
+  final PatientModel patient;
+  final UserModel profile;
+  final TbCaseModel? tbCase;
+  final TreatmentModel? therapy;
+  final MedicationIntakePlan? intakePlan;
+  final List<MedicationLogModel> recentLogs;
+  final List<TherapyStatusHistoryModel> statusHistory;
+
+  const PatientDetailSummary({
+    required this.patient,
+    required this.profile,
+    required this.tbCase,
+    required this.therapy,
+    required this.intakePlan,
+    required this.recentLogs,
+    required this.statusHistory,
+  });
+}
+
+class DoctorMapSummary {
+  final List<DoctorMapCase> cases;
+
+  const DoctorMapSummary({required this.cases});
+
+  int get totalInView => cases.length;
+  int get highRiskCount => cases.where((item) => item.isHighRisk).length;
+  int get activeCount => cases.where((item) => item.isActive).length;
+  int get completedCount => cases.where((item) => item.isCompleted).length;
+}
+
+class DoctorMapCase {
+  final DoctorPatientDirectoryItem item;
+  final PatientLocationModel location;
+
+  const DoctorMapCase({
+    required this.item,
+    required this.location,
+  });
+
+  bool get isCompleted => item.therapy?.isCompleted ?? false;
+  bool get isActive => (item.therapy?.isOngoing ?? false) && !isHighRisk;
+  bool get isHighRisk {
+    final therapy = item.therapy;
+    return item.missedCount > 0 ||
+        (therapy?.isDefaulted ?? false) ||
+        ((therapy?.isOngoing ?? false) &&
+            (therapy?.adherencePercentage ?? 100) < 80);
+  }
+
+  String get patientName {
+    final fullName = item.profile.fullName.trim();
+    if (fullName.isNotEmpty) return fullName;
+    final email = item.profile.email.trim();
+    if (email.isNotEmpty) return email;
+    return 'Patient';
+  }
+
+  String get patientCode {
+    final value = item.patient.patientCode;
+    if (value != null && value.trim().isNotEmpty) return value.trim();
+    return item.patient.patientId;
+  }
+}
+
+class DoctorProfileSummary {
+  final UserModel profile;
+  final DoctorModel? doctor;
+
+  const DoctorProfileSummary({
+    required this.profile,
+    required this.doctor,
+  });
 }

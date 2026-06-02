@@ -1,5 +1,7 @@
 import 'package:medtrace/core/error/exceptions.dart';
 import 'package:medtrace/data/models/doctor_code_model.dart';
+import 'package:medtrace/data/models/doctor_model.dart';
+import 'package:medtrace/data/models/patient_model.dart';
 import 'package:medtrace/data/models/profile_model.dart';
 import 'package:medtrace/services/supabase/profile_service.dart';
 import 'package:medtrace/services/supabase/supabase_service_context.dart';
@@ -33,6 +35,24 @@ class DoctorService {
     if (byProfile != null) return byProfile['doctor_id'] as String;
 
     throw NotFoundException(message: 'Doctor profile not found');
+  }
+
+  Future<DoctorModel?> getByAuthUserId(String authUserId) async {
+    final response = await context.client
+        .from('doctors')
+        .select()
+        .eq('profile_id', authUserId)
+        .maybeSingle();
+    if (response != null) return DoctorModel.fromJson(response);
+
+    final byUser = await context.client
+        .from('doctors')
+        .select(
+            'doctor_id, profile_id, facility_name, created_at, updated_at, profiles!inner(user_id)')
+        .eq('profiles.user_id', authUserId)
+        .maybeSingle();
+    if (byUser == null) return null;
+    return DoctorModel.fromJson(byUser);
   }
 
   Future<String> generateCode({
@@ -86,6 +106,23 @@ class DoctorService {
     return (response as List).map((row) {
       final data = row as Map<String, dynamic>;
       return UserModel.fromJson(data['profiles'] as Map<String, dynamic>);
+    }).toList();
+  }
+
+  Future<List<DoctorPatientRecord>> getPatientRecords(String doctorId) async {
+    final resolvedDoctorId = await resolveDoctorId(doctorId);
+    final response = await context.client
+        .from('patients')
+        .select('*, profiles(*)')
+        .eq('doctor_id', resolvedDoctorId)
+        .order('created_at', ascending: false);
+
+    return (response as List).map((row) {
+      final data = row as Map<String, dynamic>;
+      return DoctorPatientRecord(
+        patient: PatientModel.fromJson(data),
+        profile: UserModel.fromJson(data['profiles'] as Map<String, dynamic>),
+      );
     }).toList();
   }
 
@@ -145,4 +182,14 @@ class DoctorService {
         .maybeSingle();
     return byUser;
   }
+}
+
+class DoctorPatientRecord {
+  final PatientModel patient;
+  final UserModel profile;
+
+  const DoctorPatientRecord({
+    required this.patient,
+    required this.profile,
+  });
 }

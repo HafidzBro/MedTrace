@@ -22,4 +22,5 @@ class AppRoutes {
   static const String alerts = '/doctor/alerts';
   static const String analytics = '/doctor/analytics';
   static const String doctorMap = '/doctor/map';
+  static const String doctorProfile = '/doctor/profile';
 }

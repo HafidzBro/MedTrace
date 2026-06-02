@@ -73,4 +73,22 @@ class LocationService {
             (row) => PatientLocationModel.fromJson(row as Map<String, dynamic>))
         .toList();
   }
+
+  Future<List<PatientLocationModel>> listCurrentForPatients(
+    List<String> patientIds,
+  ) async {
+    if (patientIds.isEmpty) return [];
+
+    final response = await context.client
+        .from('patient_locations')
+        .select()
+        .inFilter('patient_id', patientIds)
+        .eq('is_current', true)
+        .order('recorded_at', ascending: false);
+
+    return (response as List)
+        .map(
+            (row) => PatientLocationModel.fromJson(row as Map<String, dynamic>))
+        .toList();
+  }
 }

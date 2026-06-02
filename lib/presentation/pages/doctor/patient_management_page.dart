@@ -1,32 +1,51 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:medtrace/data/models/medication_log_model.dart';
+import 'package:medtrace/services/supabase/dashboard_service.dart';
 import 'package:medtrace/presentation/pages/doctor/doctor_mockup_widgets.dart';
+import 'package:medtrace/presentation/providers/app_providers.dart';
 import 'package:medtrace/presentation/router/app_routes.dart';
 
-class PatientManagementPage extends StatelessWidget {
+class PatientManagementPage extends ConsumerStatefulWidget {
   const PatientManagementPage({super.key});
 
   @override
+  ConsumerState<PatientManagementPage> createState() =>
+      _PatientManagementPageState();
+}
+
+class _PatientManagementPageState extends ConsumerState<PatientManagementPage> {
+  String _query = '';
+  _TherapyFilter _filter = _TherapyFilter.all;
+
+  @override
   Widget build(BuildContext context) {
+    final summary = ref.watch(currentDoctorDashboardSummaryProvider);
+    final items = _filteredItems(summary.valueOrNull?.directoryItems ?? []);
+
     return DoctorMockScaffold(
       currentIndex: 1,
-      appBar: const DoctorTopBar(
+      appBar: DoctorTopBar(
         title: 'MedTrace',
+        onLeadingTap: () => context.go(AppRoutes.doctorProfile),
         actions: [
-          Padding(
-            padding: EdgeInsets.only(right: 8),
-            child: DoctorAvatar(
-                icon: Icons.person, radius: 18, color: Color(0xFF2F3D4A)),
+          IconButton(
+            onPressed: () => context.go(AppRoutes.alerts),
+            icon: const Icon(Icons.notifications_none_rounded),
+            color: doctorTeal,
           ),
-          SizedBox(width: 4),
-          Icon(Icons.notifications_none_rounded, color: doctorTeal),
-          SizedBox(width: 18),
+          const SizedBox(width: 14),
         ],
       ),
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(28, 18, 28, 104),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      child: RefreshIndicator(
+        color: doctorTeal,
+        onRefresh: () async {
+          ref.invalidate(currentDoctorDashboardSummaryProvider);
+          await ref.read(currentDoctorDashboardSummaryProvider.future);
+        },
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(28, 18, 28, 104),
           children: [
             const Text(
               'Patient Directory',
@@ -45,118 +64,155 @@ class PatientManagementPage extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  child: Container(
+                  child: SizedBox(
                     height: 46,
-                    padding: const EdgeInsets.symmetric(horizontal: 14),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      border: Border.all(color: const Color(0xFFB7C3C3)),
-                      borderRadius: BorderRadius.circular(7),
-                    ),
-                    child: const Row(
-                      children: [
-                        Icon(Icons.search_rounded, color: Color(0xFF657174)),
-                        SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            'Search by name, ID, or phone...',
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                                color: Color(0xFF7B8588), fontSize: 14),
-                          ),
+                    child: TextField(
+                      onChanged: (value) => setState(() => _query = value),
+                      textInputAction: TextInputAction.search,
+                      decoration: InputDecoration(
+                        prefixIcon: const Icon(
+                          Icons.search_rounded,
+                          color: Color(0xFF657174),
                         ),
-                      ],
+                        hintText: 'Search by name, ID, or phone...',
+                        hintStyle: const TextStyle(
+                          color: Color(0xFF7B8588),
+                          fontSize: 14,
+                        ),
+                        filled: true,
+                        fillColor: Colors.white,
+                        contentPadding:
+                            const EdgeInsets.symmetric(horizontal: 12),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(7),
+                          borderSide:
+                              const BorderSide(color: Color(0xFFB7C3C3)),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(7),
+                          borderSide: const BorderSide(color: doctorTeal),
+                        ),
+                      ),
                     ),
                   ),
                 ),
                 const SizedBox(width: 12),
-                Container(
-                  width: 60,
-                  height: 46,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    border: Border.all(color: const Color(0xFFB7C3C3)),
-                    borderRadius: BorderRadius.circular(7),
-                  ),
-                  child:
-                      const Icon(Icons.filter_list_rounded, color: doctorText),
+                _FilterMenu(
+                  value: _filter,
+                  onChanged: (value) => setState(() => _filter = value),
                 ),
               ],
             ),
             const SizedBox(height: 24),
-            _PatientDirectoryCard(
-              initials: 'AM',
-              name: 'Amina',
-              id: 'TBM-23-0842',
-              status: 'On Treatment',
-              statusColor: doctorMintSoft,
-              statusText: doctorTeal,
-              days: '112',
-              totalDays: '180',
-              progress: 0.62,
-              lastLog: 'Today, 08:30',
-              lastLogIcon: Icons.check_circle_outline_rounded,
-              avatarColor: doctorTeal2,
-              onTap: () => context
-                  .go(AppRoutes.patientDetail, extra: {'patientName': 'Amina'}),
-            ),
-            const SizedBox(height: 18),
-            _PatientDirectoryCard(
-              initials: 'DK',
-              name: 'David',
-              id: 'TBM-23-1105',
-              status: 'At Risk (3 Missed)',
-              statusColor: doctorDangerSoft,
-              statusText: doctorDanger,
-              days: '45',
-              totalDays: '180',
-              progress: 0.2,
-              progressColor: doctorDanger,
-              lastLog: '3 days ago',
-              lastLogIcon: Icons.warning_amber_rounded,
-              lastLogColor: doctorDanger,
-              avatarColor: doctorDangerSoft,
-              avatarText: doctorDanger,
-              onTap: () => context
-                  .go(AppRoutes.patientDetail, extra: {'patientName': 'David'}),
-            ),
-            const SizedBox(height: 18),
-            _PatientDirectoryCard(
-              initials: 'SJ',
-              name: 'Sarah',
-              id: 'TBM-24-0012',
-              status: 'Pending Sputum Test',
-              statusColor: doctorNeutral,
-              statusText: const Color(0xFF4F585B),
-              days: '14',
-              totalDays: '180',
-              progress: 0.08,
-              progressColor: const Color(0xFF7D8788),
-              lastLog: 'Yesterday',
-              lastLogIcon: Icons.check_circle_outline_rounded,
-              avatarColor: doctorNeutral,
-              avatarText: const Color(0xFF5D6668),
-              onTap: () => context
-                  .go(AppRoutes.patientDetail, extra: {'patientName': 'Sarah'}),
-            ),
-            const SizedBox(height: 18),
-            _PatientDirectoryCard(
-              initials: 'EO',
-              name: 'Emmanuel',
-              id: 'TBM-23-0551',
-              status: 'On Treatment',
-              statusColor: doctorMintSoft,
-              statusText: doctorTeal,
-              days: '165',
-              totalDays: '180',
-              progress: 0.9,
-              lastLog: 'Today, 06:15',
-              lastLogIcon: Icons.check_circle_outline_rounded,
-              avatarColor: doctorTeal2,
-              onTap: () => context.go(AppRoutes.patientDetail,
-                  extra: {'patientName': 'Emmanuel'}),
-            ),
+            if (summary.isLoading && summary.valueOrNull == null)
+              const _DirectoryStateCard(
+                icon: Icons.hourglass_empty_rounded,
+                title: 'Loading patients',
+                message: 'Fetching assigned patients from Supabase.',
+              )
+            else if (summary.hasError && summary.valueOrNull == null)
+              _DirectoryStateCard(
+                icon: Icons.error_outline_rounded,
+                title: 'Unable to load patients',
+                message: summary.error.toString(),
+                danger: true,
+              )
+            else if (items.isEmpty)
+              const _DirectoryStateCard(
+                icon: Icons.person_search_rounded,
+                title: 'No patients found',
+                message: 'Try changing the search or therapy status filter.',
+              )
+            else
+              ...items.map(
+                (item) => Padding(
+                  padding: const EdgeInsets.only(bottom: 18),
+                  child: _PatientDirectoryCard(
+                    item: item,
+                    onTap: () => context.go(
+                      AppRoutes.patientDetail,
+                      extra: {
+                        'patientId': item.patient.patientId,
+                        'patientName': _patientName(item),
+                      },
+                    ),
+                  ),
+                ),
+              ),
           ],
+        ),
+      ),
+    );
+  }
+
+  List<DoctorPatientDirectoryItem> _filteredItems(
+    List<DoctorPatientDirectoryItem> items,
+  ) {
+    final normalizedQuery = _query.trim().toLowerCase();
+    return items.where((item) {
+      final matchesQuery = normalizedQuery.isEmpty ||
+          [
+            item.profile.fullName,
+            item.profile.email,
+            item.profile.phoneNumber,
+            item.patient.patientCode,
+            item.patient.patientId,
+          ]
+              .whereType<String>()
+              .any((value) => value.toLowerCase().contains(normalizedQuery));
+      if (!matchesQuery) return false;
+
+      return switch (_filter) {
+        _TherapyFilter.all => true,
+        _TherapyFilter.onTreatment => _isOnTreatment(item),
+        _TherapyFilter.atRisk => _isAtRisk(item),
+        _TherapyFilter.completed => item.therapy?.isCompleted ?? false,
+      };
+    }).toList();
+  }
+}
+
+enum _TherapyFilter { all, onTreatment, atRisk, completed }
+
+class _FilterMenu extends StatelessWidget {
+  final _TherapyFilter value;
+  final ValueChanged<_TherapyFilter> onChanged;
+
+  const _FilterMenu({
+    required this.value,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<_TherapyFilter>(
+      initialValue: value,
+      onSelected: onChanged,
+      tooltip: 'Filter therapy status',
+      itemBuilder: (context) => const [
+        PopupMenuItem(value: _TherapyFilter.all, child: Text('All patients')),
+        PopupMenuItem(
+          value: _TherapyFilter.onTreatment,
+          child: Text('On Treatment'),
+        ),
+        PopupMenuItem(value: _TherapyFilter.atRisk, child: Text('At Risk')),
+        PopupMenuItem(value: _TherapyFilter.completed, child: Text('Complete')),
+      ],
+      child: Container(
+        width: 60,
+        height: 46,
+        decoration: BoxDecoration(
+          color: value == _TherapyFilter.all ? Colors.white : doctorMintSoft,
+          border: Border.all(
+            color: value == _TherapyFilter.all
+                ? const Color(0xFFB7C3C3)
+                : doctorTeal,
+          ),
+          borderRadius: BorderRadius.circular(7),
+        ),
+        child: Icon(
+          Icons.filter_list_rounded,
+          color: value == _TherapyFilter.all ? doctorText : doctorTeal,
         ),
       ),
     );
@@ -164,44 +220,25 @@ class PatientManagementPage extends StatelessWidget {
 }
 
 class _PatientDirectoryCard extends StatelessWidget {
-  final String initials;
-  final String name;
-  final String id;
-  final String status;
-  final Color statusColor;
-  final Color statusText;
-  final String days;
-  final String totalDays;
-  final double progress;
-  final Color progressColor;
-  final String lastLog;
-  final IconData lastLogIcon;
-  final Color lastLogColor;
-  final Color avatarColor;
-  final Color avatarText;
+  final DoctorPatientDirectoryItem item;
   final VoidCallback onTap;
 
   const _PatientDirectoryCard({
-    required this.initials,
-    required this.name,
-    required this.id,
-    required this.status,
-    required this.statusColor,
-    required this.statusText,
-    required this.days,
-    required this.totalDays,
-    required this.progress,
-    this.progressColor = doctorTeal2,
-    required this.lastLog,
-    required this.lastLogIcon,
-    this.lastLogColor = doctorTeal,
-    required this.avatarColor,
-    this.avatarText = Colors.white,
+    required this.item,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
+    final name = _patientName(item);
+    final status = _therapyStatus(item);
+    final days = item.therapy?.treatmentDaysElapsed.clamp(0, 180) ?? 0;
+    final progress = (days / 180).clamp(0.0, 1.0);
+    final lastLog = _lastLogLabel(item.lastLog);
+    final patientCode = item.patient.patientCode?.trim().isNotEmpty == true
+        ? item.patient.patientCode!
+        : _shortId(item.patient.patientId);
+
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(10),
@@ -214,13 +251,13 @@ class _PatientDirectoryCard extends StatelessWidget {
               children: [
                 CircleAvatar(
                   radius: 24,
-                  backgroundColor: avatarColor,
+                  backgroundColor: status.avatarColor,
                   child: Text(
-                    initials,
+                    _initials(name),
                     style: TextStyle(
-                      color: avatarText,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w500,
+                      color: status.avatarText,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),
@@ -229,15 +266,23 @@ class _PatientDirectoryCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(name,
-                          style: const TextStyle(
-                              color: doctorText,
-                              fontSize: 20,
-                              fontWeight: FontWeight.w700)),
+                      Text(
+                        name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: doctorText,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                       const SizedBox(height: 3),
-                      Text('ID: $id',
-                          style:
-                              const TextStyle(color: doctorText, fontSize: 13)),
+                      Text(
+                        'ID: $patientCode',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: doctorText, fontSize: 13),
+                      ),
                     ],
                   ),
                 ),
@@ -245,10 +290,10 @@ class _PatientDirectoryCard extends StatelessWidget {
             ),
             const SizedBox(height: 18),
             DoctorChip(
-              label: status,
+              label: status.label,
               icon: Icons.circle,
-              color: statusColor,
-              textColor: statusText,
+              color: status.color,
+              textColor: status.textColor,
             ),
             const SizedBox(height: 16),
             Container(height: 1, color: doctorBorder),
@@ -259,20 +304,26 @@ class _PatientDirectoryCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Days on Therapy',
-                          style: TextStyle(color: doctorMuted, fontSize: 13)),
+                      const Text(
+                        'Days on Therapy',
+                        style: TextStyle(color: doctorMuted, fontSize: 13),
+                      ),
                       const SizedBox(height: 8),
                       RichText(
                         text: TextSpan(
                           style: const TextStyle(color: doctorText),
                           children: [
                             TextSpan(
-                                text: days,
-                                style: const TextStyle(
-                                    fontSize: 21, fontWeight: FontWeight.w800)),
-                            TextSpan(
-                                text: ' / $totalDays',
-                                style: const TextStyle(fontSize: 12)),
+                              text: days.toString(),
+                              style: const TextStyle(
+                                fontSize: 21,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            const TextSpan(
+                              text: ' / 180',
+                              style: TextStyle(fontSize: 12),
+                            ),
                           ],
                         ),
                       ),
@@ -283,7 +334,8 @@ class _PatientDirectoryCard extends StatelessWidget {
                           value: progress,
                           minHeight: 4,
                           backgroundColor: doctorNeutral,
-                          valueColor: AlwaysStoppedAnimation(progressColor),
+                          valueColor:
+                              AlwaysStoppedAnimation(status.progressColor),
                         ),
                       ),
                     ],
@@ -294,17 +346,30 @@ class _PatientDirectoryCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Last Log',
-                          style: TextStyle(color: doctorMuted, fontSize: 13)),
+                      const Text(
+                        'Last Log',
+                        style: TextStyle(color: doctorMuted, fontSize: 13),
+                      ),
                       const SizedBox(height: 12),
                       Row(
                         children: [
-                          Icon(lastLogIcon, size: 16, color: lastLogColor),
+                          Icon(
+                            lastLog.icon,
+                            size: 16,
+                            color: lastLog.color,
+                          ),
                           const SizedBox(width: 4),
                           Expanded(
-                              child: Text(lastLog,
-                                  style: const TextStyle(
-                                      color: doctorText, fontSize: 14))),
+                            child: Text(
+                              lastLog.label,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: doctorText,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
                         ],
                       ),
                     ],
@@ -317,4 +382,216 @@ class _PatientDirectoryCard extends StatelessWidget {
       ),
     );
   }
+}
+
+class _DirectoryStateCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String message;
+  final bool danger;
+
+  const _DirectoryStateCard({
+    required this.icon,
+    required this.title,
+    required this.message,
+    this.danger = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return DoctorCard(
+      padding: const EdgeInsets.all(18),
+      color: danger ? doctorDangerSoft : Colors.white,
+      borderColor: danger ? const Color(0xFFFFB4AE) : doctorBorder,
+      child: Row(
+        children: [
+          Icon(icon, color: danger ? doctorDanger : doctorTeal),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    color: danger ? doctorDanger : doctorText,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  message,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: danger ? doctorDanger : doctorMuted,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatusView {
+  final String label;
+  final Color color;
+  final Color textColor;
+  final Color progressColor;
+  final Color avatarColor;
+  final Color avatarText;
+
+  const _StatusView({
+    required this.label,
+    required this.color,
+    required this.textColor,
+    required this.progressColor,
+    required this.avatarColor,
+    required this.avatarText,
+  });
+}
+
+class _LastLogView {
+  final String label;
+  final IconData icon;
+  final Color color;
+
+  const _LastLogView({
+    required this.label,
+    required this.icon,
+    required this.color,
+  });
+}
+
+bool _isAtRisk(DoctorPatientDirectoryItem item) {
+  final therapy = item.therapy;
+  return item.missedCount > 0 ||
+      (therapy?.isDefaulted ?? false) ||
+      ((therapy?.isOngoing ?? false) &&
+          (therapy?.adherencePercentage ?? 100) < 80);
+}
+
+bool _isOnTreatment(DoctorPatientDirectoryItem item) {
+  return (item.therapy?.isOngoing ?? false) && !_isAtRisk(item);
+}
+
+String _patientName(DoctorPatientDirectoryItem item) {
+  final fullName = item.profile.fullName.trim();
+  if (fullName.isNotEmpty) return fullName;
+  final email = item.profile.email.trim();
+  if (email.isNotEmpty) return email;
+  return 'Patient';
+}
+
+String _initials(String value) {
+  final parts = value
+      .trim()
+      .split(RegExp(r'\s+'))
+      .where((part) => part.isNotEmpty)
+      .toList();
+  if (parts.isEmpty) return 'PT';
+  final first = parts.first.substring(0, 1);
+  final second = parts.length > 1 ? parts.last.substring(0, 1) : '';
+  return '$first$second'.toUpperCase();
+}
+
+String _shortId(String value) {
+  final compact = value.replaceAll('-', '').toUpperCase();
+  if (compact.length <= 8) return compact;
+  return 'TBM-${compact.substring(compact.length - 6)}';
+}
+
+_StatusView _therapyStatus(DoctorPatientDirectoryItem item) {
+  final therapy = item.therapy;
+  if (therapy?.isCompleted ?? false) {
+    return const _StatusView(
+      label: 'Complete',
+      color: doctorMintSoft,
+      textColor: doctorTeal,
+      progressColor: doctorTeal2,
+      avatarColor: doctorTeal2,
+      avatarText: Colors.white,
+    );
+  }
+
+  if (_isAtRisk(item)) {
+    final missed = item.missedCount;
+    return _StatusView(
+      label: missed > 0 ? 'At Risk ($missed Missed)' : 'At Risk',
+      color: doctorDangerSoft,
+      textColor: doctorDanger,
+      progressColor: doctorDanger,
+      avatarColor: doctorDangerSoft,
+      avatarText: doctorDanger,
+    );
+  }
+
+  if (therapy?.isOngoing ?? false) {
+    return const _StatusView(
+      label: 'On Treatment',
+      color: doctorMintSoft,
+      textColor: doctorTeal,
+      progressColor: doctorTeal2,
+      avatarColor: doctorTeal2,
+      avatarText: Colors.white,
+    );
+  }
+
+  return const _StatusView(
+    label: 'No Active Therapy',
+    color: doctorNeutral,
+    textColor: Color(0xFF4F585B),
+    progressColor: Color(0xFF7D8788),
+    avatarColor: doctorNeutral,
+    avatarText: Color(0xFF5D6668),
+  );
+}
+
+_LastLogView _lastLogLabel(MedicationLogModel? log) {
+  if (log == null) {
+    return const _LastLogView(
+      label: 'No logs yet',
+      icon: Icons.schedule_rounded,
+      color: doctorMuted,
+    );
+  }
+
+  final now = DateTime.now();
+  final date = DateTime(
+      log.scheduledAt.year, log.scheduledAt.month, log.scheduledAt.day);
+  final today = DateTime(now.year, now.month, now.day);
+  final daysAgo = today.difference(date).inDays;
+  final hour = log.scheduledAt.hour.toString().padLeft(2, '0');
+  final minute = log.scheduledAt.minute.toString().padLeft(2, '0');
+
+  if (log.isMissed) {
+    return _LastLogView(
+      label: daysAgo <= 0
+          ? 'Missed today'
+          : daysAgo == 1
+              ? 'Yesterday'
+              : '$daysAgo days ago',
+      icon: Icons.warning_amber_rounded,
+      color: doctorDanger,
+    );
+  }
+
+  if (daysAgo <= 0) {
+    return _LastLogView(
+      label: 'Today, $hour:$minute',
+      icon: Icons.check_circle_outline_rounded,
+      color: doctorTeal,
+    );
+  }
+
+  return _LastLogView(
+    label: daysAgo == 1 ? 'Yesterday' : '$daysAgo days ago',
+    icon: Icons.check_circle_outline_rounded,
+    color: doctorTeal,
+  );
 }

@@ -43,7 +43,8 @@ class AlertService {
 
     final response = await context.client
         .from('alerts')
-        .select()
+        .select(
+            '*, patients!inner(patient_id, profile_id, profiles!inner(full_name, email))')
         .filter('patient_id', 'in', '(${patientIds.join(',')})')
         .order('created_at', ascending: false);
 

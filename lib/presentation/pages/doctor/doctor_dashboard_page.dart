@@ -22,7 +22,11 @@ class DoctorDashboardPage extends ConsumerWidget {
 
     return DoctorMockScaffold(
       currentIndex: 0,
-      appBar: const DoctorTopBar(title: 'MedTrace', centeredTitle: true),
+      appBar: DoctorTopBar(
+        title: 'MedTrace',
+        centeredTitle: true,
+        onLeadingTap: () => context.go(AppRoutes.doctorProfile),
+      ),
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(32, 30, 32, 104),
         child: Column(
@@ -43,41 +47,47 @@ class DoctorDashboardPage extends ConsumerWidget {
               style: TextStyle(color: doctorMuted, fontSize: 15),
             ),
             const SizedBox(height: 34),
-            GridView.count(
-              crossAxisCount: 2,
+            GridView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              crossAxisSpacing: 16,
-              mainAxisSpacing: 16,
-              childAspectRatio: 1.28,
-              children: [
-                _KpiCard(
-                  title: 'TOTAL PATIENTS',
-                  value: summary.isLoading ? '...' : totalPatients,
-                  subtitle: 'Assigned patients',
-                  icon: Icons.groups_rounded,
-                ),
-                _KpiCard(
-                  title: 'ACTIVE\nTREATMENTS',
-                  value: summary.isLoading ? '...' : activeTherapies,
-                  subtitle: 'Ongoing therapies',
-                  icon: Icons.medical_services_rounded,
-                  dark: true,
-                ),
-                _KpiCard(
-                  title: 'AT RISK OF\nDEFAULT',
-                  value: summary.isLoading ? '...' : highPriority,
-                  subtitle: 'Requires immediate\naction',
-                  icon: Icons.warning_rounded,
-                  danger: true,
-                ),
-                _KpiCard(
-                  title: 'RECOVERED',
-                  value: summary.isLoading ? '...' : recovered.toString(),
-                  subtitle: 'Completed therapy',
-                  icon: Icons.check_circle_rounded,
-                ),
-              ],
+              itemCount: 4,
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+                mainAxisExtent: 128,
+              ),
+              itemBuilder: (context, index) {
+                final cards = [
+                  _KpiCard(
+                    title: 'TOTAL\nPATIENTS',
+                    value: summary.isLoading ? '...' : totalPatients,
+                    subtitle: 'Assigned patients',
+                    icon: Icons.groups_rounded,
+                  ),
+                  _KpiCard(
+                    title: 'ACTIVE\nTREATMENTS',
+                    value: summary.isLoading ? '...' : activeTherapies,
+                    subtitle: 'Ongoing therapies',
+                    icon: Icons.medical_services_rounded,
+                    dark: true,
+                  ),
+                  _KpiCard(
+                    title: 'AT RISK OF\nDEFAULT',
+                    value: summary.isLoading ? '...' : highPriority,
+                    subtitle: 'Immediate action',
+                    icon: Icons.warning_rounded,
+                    danger: true,
+                  ),
+                  _KpiCard(
+                    title: 'RECOVERED',
+                    value: summary.isLoading ? '...' : recovered.toString(),
+                    subtitle: 'Completed therapy',
+                    icon: Icons.check_circle_rounded,
+                  ),
+                ];
+                return cards[index];
+              },
             ),
             const SizedBox(height: 32),
             DoctorCard(
@@ -105,7 +115,7 @@ class DoctorDashboardPage extends ConsumerWidget {
                     ],
                   ),
                   const SizedBox(height: 18),
-                  ..._followUps(data),
+                  ..._followUps(data, isLoading: summary.isLoading),
                   const SizedBox(height: 20),
                   SizedBox(
                     width: double.infinity,
@@ -142,36 +152,74 @@ class DoctorDashboardPage extends ConsumerWidget {
         : 'Dr. ${trimmed.split(RegExp(r'\s+')).first}';
   }
 
-  static List<Widget> _followUps(dynamic data) {
+  static List<Widget> _followUps(dynamic data, {required bool isLoading}) {
     final alerts = data?.alerts ?? const [];
+    if (isLoading) {
+      return const [
+        _EmptyFollowUpTile(
+          icon: Icons.hourglass_empty_rounded,
+          title: 'Loading follow-ups',
+          message: 'Checking alerts from your assigned patients.',
+        ),
+      ];
+    }
+
     if (alerts.isEmpty) {
       return const [
-        _FollowUpTile(
-          initials: 'SJ',
-          name: 'Sarah Jenkins',
-          note: 'Seed patient ready for review',
-          badge: 'Active',
-          badgeColor: doctorMintSoft,
-          badgeText: doctorTeal,
+        _EmptyFollowUpTile(
+          icon: Icons.check_circle_outline_rounded,
+          title: 'No priority follow-ups',
+          message: 'New patient alerts will appear here.',
         ),
-        SizedBox(height: 12),
       ];
     }
 
     return alerts.take(3).map<Widget>((alert) {
       final high = alert.severity == 'high' || alert.severity == 'critical';
+      final patientName = _patientDisplayName(
+        alert.patientName,
+        alert.patientEmail,
+      );
       return Padding(
         padding: const EdgeInsets.only(bottom: 12),
         child: _FollowUpTile(
-          initials: 'SJ',
-          name: 'Sarah Jenkins',
-          note: alert.description ?? alert.type,
+          initials: _initials(patientName),
+          name: patientName,
+          note: alert.description ?? _formatAlertType(alert.type),
           badge: high ? 'High Risk' : 'Medium Risk',
           badgeColor: high ? doctorDangerSoft : doctorWarningSoft,
           badgeText: high ? doctorDanger : const Color(0xFF8C4A1F),
         ),
       );
     }).toList();
+  }
+
+  static String _patientDisplayName(String? name, String? email) {
+    final trimmedName = name?.trim();
+    if (trimmedName != null && trimmedName.isNotEmpty) return trimmedName;
+    final trimmedEmail = email?.trim();
+    if (trimmedEmail != null && trimmedEmail.isNotEmpty) return trimmedEmail;
+    return 'Patient';
+  }
+
+  static String _initials(String value) {
+    final parts = value
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((part) => part.isNotEmpty)
+        .toList();
+    if (parts.isEmpty) return 'PT';
+    final first = parts.first.substring(0, 1);
+    final second = parts.length > 1 ? parts.last.substring(0, 1) : '';
+    return '$first$second'.toUpperCase();
+  }
+
+  static String _formatAlertType(String value) {
+    final words = value
+        .split('_')
+        .where((word) => word.isNotEmpty)
+        .map((word) => '${word[0].toUpperCase()}${word.substring(1)}');
+    return words.join(' ');
   }
 }
 
@@ -207,7 +255,7 @@ class _KpiCard extends StatelessWidget {
     final sub = dark ? const Color(0xFFA9DAD8) : doctorTeal;
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(10),
@@ -245,11 +293,13 @@ class _KpiCard extends StatelessWidget {
                   Expanded(
                     child: Text(
                       title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: danger
                             ? doctorDanger
                             : (dark ? const Color(0xFFA9DAD8) : doctorMuted),
-                        fontSize: 12,
+                        fontSize: 11,
                         height: 1.15,
                       ),
                     ),
@@ -258,25 +308,27 @@ class _KpiCard extends StatelessWidget {
                       color: dark
                           ? const Color(0xFFA9DAD8)
                           : (danger ? doctorDanger : doctorTeal),
-                      size: 22),
+                      size: 20),
                 ],
               ),
-              const Spacer(),
+              const SizedBox(height: 10),
               Text(
                 value,
                 style: TextStyle(
                   color: fg,
-                  fontSize: 32,
+                  fontSize: 30,
                   fontWeight: FontWeight.w800,
                   height: 1,
                 ),
               ),
-              const SizedBox(height: 8),
+              const Spacer(),
               Text(
                 subtitle,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   color: danger ? doctorDanger : sub,
-                  fontSize: 13,
+                  fontSize: 11,
                   height: 1.25,
                 ),
               ),
@@ -308,36 +360,107 @@ class _FollowUpTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
         border: Border.all(color: doctorBorder),
         borderRadius: BorderRadius.circular(7),
       ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              DoctorAvatar(
+                initials: initials,
+                radius: 20,
+                color: doctorNeutral,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  name,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: doctorText,
+                    height: 1.2,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            note,
+            style: const TextStyle(
+              color: doctorMuted,
+              fontSize: 14,
+              height: 1.35,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerRight,
+            child: DoctorChip(
+              label: badge,
+              color: badgeColor,
+              textColor: badgeText,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EmptyFollowUpTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String message;
+
+  const _EmptyFollowUpTile({
+    required this.icon,
+    required this.title,
+    required this.message,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF2F4F4),
+        border: Border.all(color: doctorBorder),
+        borderRadius: BorderRadius.circular(7),
+      ),
       child: Row(
         children: [
-          DoctorAvatar(
-            initials: initials,
-            radius: 20,
-            color: doctorNeutral,
-          ),
-          const SizedBox(width: 14),
+          Icon(icon, color: doctorTeal),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(name,
-                    style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: doctorText)),
-                const SizedBox(height: 2),
-                Text(note,
-                    style: const TextStyle(color: doctorMuted, fontSize: 14)),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: doctorText,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  message,
+                  style: const TextStyle(color: doctorMuted, fontSize: 13),
+                ),
               ],
             ),
           ),
-          DoctorChip(label: badge, color: badgeColor, textColor: badgeText),
         ],
       ),
     );

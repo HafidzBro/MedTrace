@@ -14,6 +14,7 @@ import 'package:medtrace/presentation/pages/patient/tb_map_page.dart';
 import 'package:medtrace/presentation/pages/patient/reminders_page.dart';
 import 'package:medtrace/presentation/pages/patient/patient_profile_page.dart';
 import 'package:medtrace/presentation/pages/doctor/doctor_dashboard_page.dart';
+import 'package:medtrace/presentation/pages/doctor/doctor_profile_page.dart';
 import 'package:medtrace/presentation/pages/doctor/patient_management_page.dart';
 import 'package:medtrace/presentation/pages/doctor/alerts_page.dart';
 import 'package:medtrace/presentation/pages/doctor/patient_detail_page.dart';
@@ -140,17 +141,22 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.alerts,
         name: 'alerts',
-        builder: (context, state) => const AnalyticsPage(),
+        builder: (context, state) => const AlertsPage(),
       ),
       GoRoute(
         path: AppRoutes.analytics,
         name: 'analytics',
-        builder: (context, state) => const AlertsPage(),
+        builder: (context, state) => const AnalyticsPage(),
       ),
       GoRoute(
         path: AppRoutes.doctorMap,
         name: 'doctor_map',
         builder: (context, state) => const DoctorMapPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.doctorProfile,
+        name: 'doctor_profile',
+        builder: (context, state) => const DoctorProfilePage(),
       ),
     ],
   );

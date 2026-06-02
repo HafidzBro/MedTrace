@@ -48,6 +48,39 @@ final currentDoctorDashboardSummaryProvider =
   return service.dashboard.doctorSummary(user.id);
 });
 
+final currentDoctorMapSummaryProvider =
+    FutureProvider<DoctorMapSummary>((ref) async {
+  final user = ref.watch(authProvider).user;
+  if (user == null) {
+    throw StateError('No authenticated doctor profile is available.');
+  }
+
+  final service = ref.watch(supabaseServiceProvider);
+  return service.doctorMapSummary(user.id);
+});
+
+final currentDoctorProfileSummaryProvider =
+    FutureProvider<DoctorProfileSummary>((ref) async {
+  final user = ref.watch(authProvider).user;
+  if (user == null) {
+    throw StateError('No authenticated doctor profile is available.');
+  }
+
+  final service = ref.watch(supabaseServiceProvider);
+  return service.doctorProfileSummary(user.id);
+});
+
+final currentDoctorCodesProvider =
+    FutureProvider<List<DoctorCodeModel>>((ref) async {
+  final user = ref.watch(authProvider).user;
+  if (user == null) {
+    throw StateError('No authenticated doctor profile is available.');
+  }
+
+  final service = ref.watch(supabaseServiceProvider);
+  return service.listDoctorCodes(user.id);
+});
+
 final currentPatientIntakePlanProvider =
     FutureProvider<MedicationIntakePlan?>((ref) async {
   final user = ref.watch(authProvider).user;
@@ -79,6 +112,16 @@ final currentPatientProfileSummaryProvider =
 
   final service = ref.watch(supabaseServiceProvider);
   return service.patientProfileSummary(user.id);
+});
+
+final patientDetailSummaryProvider =
+    FutureProvider.family<PatientDetailSummary, String>((ref, patientId) async {
+  if (patientId.trim().isEmpty) {
+    throw StateError('No patient id is available.');
+  }
+
+  final service = ref.watch(supabaseServiceProvider);
+  return service.patientDetailSummary(patientId);
 });
 
 final pendingPatientRegistrationServiceProvider =
