@@ -144,8 +144,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const AlertsPage(),
       ),
       GoRoute(
-        path: AppRoutes.analytics,
-        name: 'analytics',
+        path: '/doctor/analytics',
+        redirect: (_, __) => AppRoutes.adherenceMonitoring,
+      ),
+      GoRoute(
+        path: AppRoutes.adherenceMonitoring,
+        name: 'adherence_monitoring',
         builder: (context, state) => const AnalyticsPage(),
       ),
       GoRoute(

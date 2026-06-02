@@ -48,6 +48,7 @@ class DoctorPatientDirectoryItem {
   final TreatmentModel? therapy;
   final MedicationLogModel? lastLog;
   final int missedCount;
+  final List<MedicationLogModel> logs;
 
   const DoctorPatientDirectoryItem({
     required this.patient,
@@ -55,6 +56,7 @@ class DoctorPatientDirectoryItem {
     this.therapy,
     this.lastLog,
     this.missedCount = 0,
+    this.logs = const [],
   });
 }
 
@@ -110,6 +112,7 @@ class DashboardService {
         therapy: therapiesByPatient[record.patient.patientId],
         lastLog: logs.isEmpty ? null : logs.first,
         missedCount: logs.where((log) => log.isMissed).length,
+        logs: logs,
       );
     }).toList();
 

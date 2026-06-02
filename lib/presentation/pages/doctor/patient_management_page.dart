@@ -32,7 +32,7 @@ class _PatientManagementPageState extends ConsumerState<PatientManagementPage> {
         actions: [
           IconButton(
             onPressed: () => context.go(AppRoutes.alerts),
-            icon: const Icon(Icons.notifications_none_rounded),
+            icon: const Icon(Icons.warning_amber_rounded),
             color: doctorTeal,
           ),
           const SizedBox(width: 14),
