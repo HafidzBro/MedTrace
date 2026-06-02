@@ -45,7 +45,7 @@ class _DoctorProfilePageState extends ConsumerState<DoctorProfilePage> {
         actions: [
           IconButton(
             onPressed: () => context.go(AppRoutes.alerts),
-            icon: const Icon(Icons.notifications_none_rounded),
+            icon: const Icon(Icons.warning_amber_rounded),
           ),
           const SizedBox(width: 14),
         ],

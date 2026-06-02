@@ -55,7 +55,8 @@ class DoctorBottomNav extends StatelessWidget {
       _NavItem(
           Icons.people_alt_rounded, 'Patients', AppRoutes.patientManagement),
       _NavItem(Icons.map_outlined, 'Map', AppRoutes.doctorMap),
-      _NavItem(Icons.warning_amber_rounded, 'Alerts', AppRoutes.alerts),
+      _NavItem(Icons.monitor_heart_outlined, 'Adherence',
+          AppRoutes.adherenceMonitoring),
     ];
 
     return SafeArea(
@@ -99,19 +100,6 @@ class DoctorBottomNav extends StatelessWidget {
                             color:
                                 active ? doctorTeal : const Color(0xFF9AA3AA),
                           ),
-                          if (item.label == 'Alerts' && active)
-                            Positioned(
-                              right: -3,
-                              top: -3,
-                              child: Container(
-                                width: 8,
-                                height: 8,
-                                decoration: const BoxDecoration(
-                                  color: doctorDanger,
-                                  shape: BoxShape.circle,
-                                ),
-                              ),
-                            ),
                         ],
                       ),
                       const SizedBox(height: 3),
@@ -204,26 +192,9 @@ class DoctorTopBar extends StatelessWidget implements PreferredSizeWidget {
       ),
       actions: actions ??
           [
-            Stack(
-              alignment: Alignment.center,
-              children: [
-                IconButton(
-                  onPressed: () {},
-                  icon: const Icon(Icons.notifications_none_rounded),
-                ),
-                Positioned(
-                  right: 13,
-                  top: 18,
-                  child: Container(
-                    width: 7,
-                    height: 7,
-                    decoration: const BoxDecoration(
-                      color: doctorDanger,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ),
-              ],
+            IconButton(
+              onPressed: () => context.go(AppRoutes.alerts),
+              icon: const Icon(Icons.warning_amber_rounded),
             ),
             const SizedBox(width: 12),
           ],
