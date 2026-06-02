@@ -79,7 +79,7 @@ class _PatientProfilePageState extends ConsumerState<PatientProfilePage> {
         onLeadingTap: () => context.go(AppRoutes.patientDashboard),
         actions: [
           IconButton(
-            onPressed: () {},
+            onPressed: () => context.go(AppRoutes.patientNotifications),
             icon: const Icon(Icons.notifications_none_rounded),
           ),
           const SizedBox(width: 14),

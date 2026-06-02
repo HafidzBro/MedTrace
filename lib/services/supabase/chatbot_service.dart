@@ -211,6 +211,7 @@ class ChatbotService {
           body: jsonEncode({
             'model': model,
             'temperature': 0.3,
+            'max_tokens': ChatbotConstants.maxResponseTokens,
             'messages': [
               {
                 'role': 'system',

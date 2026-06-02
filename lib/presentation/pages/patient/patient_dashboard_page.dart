@@ -15,7 +15,6 @@ class PatientDashboardPage extends ConsumerWidget {
     final firstName = _firstName(user?.fullName ?? user?.email ?? 'Patient');
     final therapy = summary.valueOrNull?.therapy;
     final progress = _therapyProgress(therapy?.treatmentDaysElapsed ?? 0);
-    final adherence = summary.valueOrNull?.adherencePercentage;
     final recentLogs = summary.valueOrNull?.recentLogs ?? const [];
 
     return PatientMockScaffold(
@@ -96,19 +95,6 @@ class PatientDashboardPage extends ConsumerWidget {
                           valueColor: const AlwaysStoppedAnimation(patientTeal),
                         ),
                       ),
-                      if (adherence != null) ...[
-                        const SizedBox(height: 10),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: Text(
-                            'Adherence ${adherence.toStringAsFixed(0)}%',
-                            style: const TextStyle(
-                              color: patientMuted,
-                              fontSize: 13,
-                            ),
-                          ),
-                        ),
-                      ],
                     ],
                   ),
                 ),
