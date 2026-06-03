@@ -55,7 +55,7 @@ class TherapyService {
         .from('therapies')
         .select('*, tb_cases(diagnosis_date), therapy_phases(phase_name)')
         .eq('patient_id', resolvedPatientId)
-        .inFilter('status', ['ongoing', 'on_treatment'])
+        .inFilter('status', ['ongoing', 'on_treatment', 'at_risk'])
         .order('created_at', ascending: false)
         .limit(1)
         .maybeSingle();

@@ -366,9 +366,14 @@ class _HistoryLogTile extends StatelessWidget {
 
   String _subtitle(MedicationLogModel log) {
     if (log.isTaken && log.takenAt != null) {
-      return 'Taken at ${_time(log.takenAt!)}';
+      return 'Taken at ${_time(log.takenAt!)} - scheduled ${_time(log.scheduledAt)}';
     }
-    if (log.isMissed) return 'Dose Missed';
+    if (log.isTaken) {
+      return 'Taken - scheduled ${_time(log.scheduledAt)}';
+    }
+    if (log.isMissed) {
+      return 'Missed scheduled dose at ${_time(log.scheduledAt)}';
+    }
     return 'Scheduled at ${_time(log.scheduledAt)}';
   }
 

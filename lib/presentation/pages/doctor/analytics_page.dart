@@ -551,7 +551,7 @@ class _AtRiskTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final missed = item.missedCount;
-    final high = missed >= 2 || (item.therapy?.adherencePercentage ?? 100) < 60;
+    final high = missed >= 2 || (item.therapy?.isFailed ?? false);
     return InkWell(
       borderRadius: BorderRadius.circular(8),
       onTap: () => context.go(
@@ -814,8 +814,7 @@ bool _isAtRisk(DoctorPatientDirectoryItem item) {
   final therapy = item.therapy;
   return item.missedCount > 0 ||
       (therapy?.isDefaulted ?? false) ||
-      ((therapy?.isOngoing ?? false) &&
-          (therapy?.adherencePercentage ?? 100) < 80);
+      (therapy?.isAtRisk ?? false);
 }
 
 int _severityCount(
@@ -894,7 +893,9 @@ String _monitoringSeverity(
   if (missed > 3) return 'high';
   if (missed >= 2) return 'medium';
   if (missed == 1) return 'low';
-  if ((item.therapy?.adherencePercentage ?? 100) < 80) return 'low';
+  if (item.therapy?.isAtRisk ?? false) {
+    return 'low';
+  }
   return 'none';
 }
 

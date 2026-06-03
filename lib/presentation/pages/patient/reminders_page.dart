@@ -18,31 +18,44 @@ class RemindersPage extends ConsumerWidget {
       currentIndex: 2,
       backgroundColor: const Color(0xFFF0FBFA),
       child: SafeArea(
-        child: intakePlan.when(
-          loading: () => const Center(
-            child: CircularProgressIndicator(color: patientTeal),
-          ),
-          error: (error, _) => _ReminderMessage(
-            title: 'Reminder unavailable',
-            message: error.toString(),
-          ),
-          data: (plan) => _ReminderContent(
-            plan: plan,
-            onConfirm: plan == null ||
-                    plan.items.isEmpty ||
-                    plan.isTakenToday ||
-                    user == null
-                ? null
-                : () => _confirmIntake(
-                      context,
-                      ref,
-                      user.id,
-                      plan.intakeTime,
-                    ),
+        child: RefreshIndicator(
+          color: patientTeal,
+          onRefresh: () => _refresh(ref),
+          child: intakePlan.when(
+            loading: () => const _RefreshableReminderCenter(
+              child: CircularProgressIndicator(color: patientTeal),
+            ),
+            error: (error, _) => _RefreshableReminderCenter(
+              child: _ReminderMessage(
+                title: 'Reminder unavailable',
+                message: error.toString(),
+              ),
+            ),
+            data: (plan) => _ReminderContent(
+              plan: plan,
+              onConfirm: plan == null ||
+                      plan.items.isEmpty ||
+                      plan.isTakenToday ||
+                      user == null
+                  ? null
+                  : () => _confirmIntake(
+                        context,
+                        ref,
+                        user.id,
+                        plan.intakeTime,
+                      ),
+            ),
           ),
         ),
       ),
     );
+  }
+
+  Future<void> _refresh(WidgetRef ref) async {
+    ref.invalidate(currentPatientDashboardSummaryProvider);
+    ref.invalidate(currentPatientIntakePlanProvider);
+    ref.invalidate(currentPatientAdherenceHistoryProvider);
+    await ref.read(currentPatientIntakePlanProvider.future);
   }
 
   Future<void> _confirmIntake(
@@ -185,6 +198,23 @@ class RemindersPage extends ConsumerWidget {
     final minute = date.minute.toString().padLeft(2, '0');
     final period = date.hour < 12 ? 'AM' : 'PM';
     return '$hour12:$minute $period';
+  }
+}
+
+class _RefreshableReminderCenter extends StatelessWidget {
+  final Widget child;
+
+  const _RefreshableReminderCenter({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      child: SizedBox(
+        height: MediaQuery.sizeOf(context).height * 0.72,
+        child: Center(child: child),
+      ),
+    );
   }
 }
 

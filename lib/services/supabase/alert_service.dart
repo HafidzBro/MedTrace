@@ -46,6 +46,7 @@ class AlertService {
         .select(
             '*, patients!inner(patient_id, profile_id, profiles!inner(full_name, email))')
         .filter('patient_id', 'in', '(${patientIds.join(',')})')
+        .eq('is_read', false)
         .order('created_at', ascending: false);
 
     return (response as List)
@@ -59,10 +60,22 @@ class AlertService {
         .from('alerts')
         .select()
         .eq('patient_id', resolvedPatientId)
+        .eq('is_read', false)
         .order('created_at', ascending: false);
 
     return (response as List)
         .map((row) => AlertModel.fromJson(row as Map<String, dynamic>))
         .toList();
+  }
+
+  Future<void> markTherapyAlertsRead(String therapyId) async {
+    await context.client
+        .from('alerts')
+        .update({
+          'is_read': true,
+          'read_at': DateTime.now().toIso8601String(),
+        })
+        .eq('therapy_id', therapyId)
+        .eq('is_read', false);
   }
 }

@@ -121,7 +121,7 @@ class PatientDetailPage extends ConsumerWidget {
       builder: (context) => AlertDialog(
         title: const Text('Reset therapy progress?'),
         content: const Text(
-          'This will move the current therapy back to day 1, reset adherence progress, and restart the phase schedule. Medication history remains available for audit.',
+          'This will move the current therapy back to day 1, restart the phase schedule, and clear active missed-dose risk from alerts and monitoring. Previous medication records remain available for audit.',
         ),
         actions: [
           TextButton(
@@ -147,9 +147,12 @@ class PatientDetailPage extends ConsumerWidget {
           .resetTherapyProgress(summary.therapy!.id);
       ref.invalidate(patientDetailSummaryProvider(patientId));
       ref.invalidate(currentDoctorDashboardSummaryProvider);
+      ref.invalidate(currentDoctorMapSummaryProvider);
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Therapy progress reset to day 1.')),
+        const SnackBar(
+          content: Text('Therapy reset and active risk history cleared.'),
+        ),
       );
     } catch (error) {
       if (!context.mounted) return;
@@ -732,10 +735,10 @@ class _UpdateStatusSheetState extends ConsumerState<_UpdateStatusSheet> {
                         setState(() => _selectedStatusKey = 'on_treatment'),
                   ),
                   _StatusChoice(
-                    icon: Icons.pause_circle_outline_rounded,
-                    label: 'Paused',
-                    selected: _selectedStatusKey == 'paused',
-                    onTap: () => setState(() => _selectedStatusKey = 'paused'),
+                    icon: Icons.block_rounded,
+                    label: 'Failed',
+                    selected: _selectedStatusKey == 'failed',
+                    onTap: () => setState(() => _selectedStatusKey = 'failed'),
                   ),
                   _StatusChoice(
                     icon: Icons.warning_amber_rounded,
@@ -867,6 +870,7 @@ class _UpdateStatusSheetState extends ConsumerState<_UpdateStatusSheet> {
           );
       ref.invalidate(patientDetailSummaryProvider(widget.patientId));
       ref.invalidate(currentDoctorDashboardSummaryProvider);
+      ref.invalidate(currentDoctorMapSummaryProvider);
       await ref.read(patientDetailSummaryProvider(widget.patientId).future);
       if (!mounted) return;
       Navigator.pop(context);
@@ -886,8 +890,9 @@ class _UpdateStatusSheetState extends ConsumerState<_UpdateStatusSheet> {
   String _statusKeyFromDatabase(String status) {
     return switch (status) {
       'completed' => 'completed',
-      'paused' => 'paused',
-      'defaulted' => 'paused',
+      'failed' => 'failed',
+      'paused' => 'failed',
+      'defaulted' => 'failed',
       'at_risk' => 'at_risk',
       _ => 'on_treatment',
     };
@@ -896,8 +901,8 @@ class _UpdateStatusSheetState extends ConsumerState<_UpdateStatusSheet> {
   String _statusKeyToDatabase(String statusKey) {
     return switch (statusKey) {
       'completed' => 'completed',
-      'paused' => 'paused',
-      'at_risk' => 'paused',
+      'failed' => 'failed',
+      'at_risk' => 'at_risk',
       _ => 'on_treatment',
     };
   }
@@ -1275,9 +1280,10 @@ String _statusLabel(PatientDetailSummary? summary) {
   final therapy = summary?.therapy;
   if (therapy == null) return 'No Active Therapy';
   if (therapy.isCompleted) return 'Completed';
+  if ((summary?.missedCount ?? 0) > 14 || therapy.isFailed) return 'Failed';
   final manualStatus = _latestManualStatus(summary);
   if (manualStatus != null) return _therapyStatus(manualStatus);
-  if (_isAtRisk(summary)) return 'At Risk';
+  if (therapy.isAtRisk) return 'At Risk';
   return _therapyStatus(therapy.status);
 }
 
@@ -1287,6 +1293,7 @@ String? _latestManualStatus(PatientDetailSummary? summary) {
   final latest = histories.first.newStatus;
   if (latest == 'at_risk' ||
       latest == 'paused' ||
+      latest == 'failed' ||
       latest == 'completed' ||
       latest == 'on_treatment' ||
       latest == 'ongoing') {
@@ -1299,20 +1306,12 @@ String _therapyStatus(String status) {
   return switch (status) {
     'on_treatment' || 'ongoing' => 'On Treatment',
     'completed' => 'Completed',
-    'defaulted' => 'Paused',
-    'paused' => 'Paused',
+    'defaulted' => 'Failed',
+    'paused' => 'Failed',
+    'failed' => 'Failed',
     'at_risk' => 'At Risk',
     _ => 'Registered',
   };
-}
-
-bool _isAtRisk(PatientDetailSummary? summary) {
-  final therapy = summary?.therapy;
-  if (therapy == null) return false;
-  if (therapy.isCompleted) return false;
-  if (therapy.isDefaulted) return true;
-  if (therapy.isOngoing && therapy.adherencePercentage < 80) return true;
-  return summary?.recentLogs.any((log) => log.isMissed) ?? false;
 }
 
 String _dateOrEmpty(DateTime? date) {
@@ -1402,8 +1401,7 @@ String? _formatTime(DateTime? time) {
 IconData _statusHistoryIcon(String status) {
   return switch (status) {
     'completed' => Icons.check_circle_outline_rounded,
-    'defaulted' => Icons.person_off_outlined,
-    'paused' => Icons.pause_circle_outline_rounded,
+    'defaulted' || 'paused' || 'failed' => Icons.block_rounded,
     'at_risk' => Icons.warning_amber_rounded,
     'on_treatment' || 'ongoing' => Icons.medication_liquid_rounded,
     _ => Icons.swap_horiz_rounded,

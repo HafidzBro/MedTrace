@@ -44,9 +44,12 @@ class TherapyModel extends Equatable {
       );
 
   String get id => therapyId;
-  bool get isOngoing => status == 'ongoing' || status == 'on_treatment';
+  bool get isOngoing =>
+      status == 'ongoing' || status == 'on_treatment' || status == 'at_risk';
   bool get isCompleted => status == 'completed';
-  bool get isDefaulted => status == 'defaulted';
+  bool get isDefaulted => status == 'defaulted' || status == 'failed';
+  bool get isFailed => status == 'defaulted' || status == 'failed';
+  bool get isAtRisk => status == 'at_risk';
   int get treatmentDaysElapsed => DateTime.now().difference(startDate).inDays;
 
   Map<String, dynamic> toJson() => {

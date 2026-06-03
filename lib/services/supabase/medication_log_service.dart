@@ -267,6 +267,23 @@ class MedicationLogService {
     }
   }
 
+  Future<void> clearRiskLogsForTherapy(String therapyId) async {
+    final today = _dateOnly(DateTime.now());
+
+    await context.client
+        .from('medication_logs')
+        .update({'status': 'skipped', 'taken_at': null})
+        .eq('therapy_id', therapyId)
+        .eq('status', 'missed');
+
+    await context.client
+        .from('medication_logs')
+        .update({'status': 'skipped', 'taken_at': null})
+        .eq('therapy_id', therapyId)
+        .eq('status', 'pending')
+        .lt('scheduled_at', today.toIso8601String());
+  }
+
   Future<void> _markOverduePendingLogs({
     String? patientId,
     List<String>? patientIds,
