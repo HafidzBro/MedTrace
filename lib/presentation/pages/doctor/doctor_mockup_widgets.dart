@@ -59,68 +59,72 @@ class DoctorBottomNav extends StatelessWidget {
           AppRoutes.adherenceMonitoring),
     ];
 
-    return SafeArea(
-      top: false,
-      child: Container(
-        height: 66,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.08),
-              blurRadius: 18,
-              offset: const Offset(0, -6),
-            ),
-          ],
-        ),
-        child: Row(
-          children: List.generate(items.length, (index) {
-            final item = items[index];
-            final active = index == currentIndex;
-            return Expanded(
-              child: InkWell(
-                borderRadius: BorderRadius.circular(10),
-                onTap: () => context.go(item.route),
-                child: Container(
-                  height: 54,
-                  decoration: BoxDecoration(
-                    color: active ? doctorMintSoft : Colors.transparent,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Stack(
-                        clipBehavior: Clip.none,
-                        children: [
-                          Icon(
-                            item.icon,
-                            size: 23,
-                            color:
-                                active ? doctorTeal : const Color(0xFF9AA3AA),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        item.label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: active ? doctorTeal : const Color(0xFF8FA0B7),
-                          fontSize: 11,
-                          fontWeight:
-                              active ? FontWeight.w600 : FontWeight.w400,
-                          height: 1,
+    return Container(
+      color: Colors.white,
+      child: SafeArea(
+        top: false,
+        child: Container(
+          height: 66,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.08),
+                blurRadius: 18,
+                offset: const Offset(0, -6),
+              ),
+            ],
+          ),
+          child: Row(
+            children: List.generate(items.length, (index) {
+              final item = items[index];
+              final active = index == currentIndex;
+              return Expanded(
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(10),
+                  onTap: () => context.go(item.route),
+                  child: Container(
+                    height: 54,
+                    decoration: BoxDecoration(
+                      color: active ? doctorMintSoft : Colors.transparent,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            Icon(
+                              item.icon,
+                              size: 23,
+                              color:
+                                  active ? doctorTeal : const Color(0xFF9AA3AA),
+                            ),
+                          ],
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 3),
+                        Text(
+                          item.label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color:
+                                active ? doctorTeal : const Color(0xFF8FA0B7),
+                            fontSize: 11,
+                            fontWeight:
+                                active ? FontWeight.w600 : FontWeight.w400,
+                            height: 1,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            );
-          }),
+              );
+            }),
+          ),
         ),
       ),
     );

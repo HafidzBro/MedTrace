@@ -502,8 +502,7 @@ bool _isHighRisk(DoctorPatientDirectoryItem item) {
   final therapy = item.therapy;
   return item.missedCount > 0 ||
       (therapy?.isDefaulted ?? false) ||
-      ((therapy?.isOngoing ?? false) &&
-          (therapy?.adherencePercentage ?? 100) < 80);
+      (therapy?.isAtRisk ?? false);
 }
 
 String _patientName(DoctorPatientDirectoryItem item) {
@@ -576,8 +575,8 @@ class _AlertView {
     final reason = missed > 0
         ? '$missed missed medication log${missed == 1 ? '' : 's'}'
         : (therapy?.isDefaulted ?? false)
-            ? 'therapy status indicates default risk'
-            : 'adherence is below 80%';
+            ? 'therapy status indicates failed treatment risk'
+            : 'therapy status is marked at risk';
 
     return _AlertView(
       patientId: item.patient.patientId,

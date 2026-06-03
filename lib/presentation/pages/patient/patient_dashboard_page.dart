@@ -26,140 +26,153 @@ class PatientDashboardPage extends ConsumerWidget {
       ),
       child: SafeArea(
         top: false,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(36, 26, 36, 104),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Hello, $firstName',
-                style: const TextStyle(
-                  color: patientText,
-                  fontSize: 31,
-                  fontWeight: FontWeight.w800,
-                  height: 1.1,
-                ),
-              ),
-              const SizedBox(height: 10),
-              const Text(
-                'Here is your treatment plan for today.',
-                style: TextStyle(
-                  color: patientMuted,
-                  fontSize: 16,
-                  height: 1.35,
-                ),
-              ),
-              const SizedBox(height: 34),
-              InkWell(
-                borderRadius: BorderRadius.circular(10),
-                onTap: () => context.go(AppRoutes.adherenceHistory),
-                child: PatientCard(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 18, vertical: 20),
-                  child: Column(
-                    children: [
-                      Row(
-                        children: [
-                          const Icon(Icons.auto_graph_rounded,
-                              color: patientTeal),
-                          const SizedBox(width: 10),
-                          const Expanded(
-                            child: Text(
-                              'Therapy Progress',
-                              style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.w700,
-                                color: patientText,
-                              ),
-                            ),
-                          ),
-                          Text(
-                            therapy == null
-                                ? 'No active therapy'
-                                : 'Day ${therapy.treatmentDaysElapsed}',
-                            style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
-                              color: patientTeal,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 14),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(999),
-                        child: LinearProgressIndicator(
-                          value: progress,
-                          minHeight: 12,
-                          backgroundColor: patientNeutral,
-                          valueColor: const AlwaysStoppedAnimation(patientTeal),
-                        ),
-                      ),
-                    ],
+        child: RefreshIndicator(
+          color: patientTeal,
+          onRefresh: () => _refresh(context, ref),
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(36, 26, 36, 104),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Hello, $firstName',
+                  style: const TextStyle(
+                    color: patientText,
+                    fontSize: 31,
+                    fontWeight: FontWeight.w800,
+                    height: 1.1,
                   ),
                 ),
-              ),
-              const SizedBox(height: 32),
-              _MedicineCard(
-                isLoading: summary.isLoading,
-                nextDoseLabel: _nextDoseLabel(recentLogs),
-                canLogDose: therapy != null && !summary.isLoading,
-                onLogDose: () => context.go(AppRoutes.reminders),
-              ),
-              const SizedBox(height: 32),
-              const SectionTitle('Weekly Adherence'),
-              const SizedBox(height: 12),
-              PatientCard(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: _weekDots(recentLogs),
+                const SizedBox(height: 10),
+                const Text(
+                  'Here is your treatment plan for today.',
+                  style: TextStyle(
+                    color: patientMuted,
+                    fontSize: 16,
+                    height: 1.35,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 32),
-              SizedBox(
-                width: 172,
-                child: PatientCard(
-                  padding: const EdgeInsets.all(16),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(12),
-                    onTap: () => context.go(AppRoutes.chatbot),
+                const SizedBox(height: 34),
+                InkWell(
+                  borderRadius: BorderRadius.circular(10),
+                  onTap: () => context.go(AppRoutes.adherenceHistory),
+                  child: PatientCard(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 18, vertical: 20),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Container(
-                          width: 44,
-                          height: 44,
-                          decoration: const BoxDecoration(
-                            color: patientMintSoft,
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.smart_toy_outlined,
-                            color: patientTeal,
-                          ),
+                        Row(
+                          children: [
+                            const Icon(Icons.auto_graph_rounded,
+                                color: patientTeal),
+                            const SizedBox(width: 10),
+                            const Expanded(
+                              child: Text(
+                                'Therapy Progress',
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w700,
+                                  color: patientText,
+                                ),
+                              ),
+                            ),
+                            Text(
+                              therapy == null
+                                  ? 'No active therapy'
+                                  : 'Day ${therapy.treatmentDaysElapsed}',
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                                color: patientTeal,
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 10),
-                        const Text(
-                          'Talk to\nMedTrace Bot',
-                          style: TextStyle(
-                            color: patientText,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            height: 1.25,
+                        const SizedBox(height: 14),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(999),
+                          child: LinearProgressIndicator(
+                            value: progress,
+                            minHeight: 12,
+                            backgroundColor: patientNeutral,
+                            valueColor:
+                                const AlwaysStoppedAnimation(patientTeal),
                           ),
                         ),
                       ],
                     ),
                   ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 32),
+                _MedicineCard(
+                  isLoading: summary.isLoading,
+                  nextDoseLabel: _nextDoseLabel(recentLogs),
+                  canLogDose: therapy != null && !summary.isLoading,
+                  onLogDose: () => context.go(AppRoutes.reminders),
+                ),
+                const SizedBox(height: 32),
+                const SectionTitle('Weekly Adherence'),
+                const SizedBox(height: 12),
+                PatientCard(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: _weekDots(recentLogs),
+                  ),
+                ),
+                const SizedBox(height: 32),
+                SizedBox(
+                  width: 172,
+                  child: PatientCard(
+                    padding: const EdgeInsets.all(16),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(12),
+                      onTap: () => context.go(AppRoutes.chatbot),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            width: 44,
+                            height: 44,
+                            decoration: const BoxDecoration(
+                              color: patientMintSoft,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.smart_toy_outlined,
+                              color: patientTeal,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          const Text(
+                            'Talk to\nMedTrace Bot',
+                            style: TextStyle(
+                              color: patientText,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              height: 1.25,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
     );
+  }
+
+  Future<void> _refresh(BuildContext context, WidgetRef ref) async {
+    ref.invalidate(currentPatientDashboardSummaryProvider);
+    ref.invalidate(currentPatientIntakePlanProvider);
+    ref.invalidate(currentPatientAdherenceHistoryProvider);
+    await ref.read(currentPatientDashboardSummaryProvider.future);
   }
 
   static String _firstName(String value) {

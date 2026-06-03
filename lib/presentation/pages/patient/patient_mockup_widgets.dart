@@ -64,63 +64,67 @@ class PatientBottomNav extends StatelessWidget {
       ),
     ];
 
-    return SafeArea(
-      top: false,
-      child: Container(
-        height: 66,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.08),
-              blurRadius: 18,
-              offset: const Offset(0, -6),
-            ),
-          ],
-        ),
-        child: Row(
-          children: List.generate(items.length, (index) {
-            final item = items[index];
-            final active = index == currentIndex;
-            return Expanded(
-              child: InkWell(
-                borderRadius: BorderRadius.circular(10),
-                onTap: () => context.go(item.route),
-                child: Container(
-                  height: 54,
-                  decoration: BoxDecoration(
-                    color: active ? patientMintSoft : Colors.transparent,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        item.icon,
-                        size: 22,
-                        color: active ? patientTeal : const Color(0xFF9AAAC0),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        item.label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 11,
-                          height: 1,
-                          color: active ? patientTeal : const Color(0xFF8FA0B7),
-                          fontWeight:
-                              active ? FontWeight.w600 : FontWeight.w400,
+    return Container(
+      color: Colors.white,
+      child: SafeArea(
+        top: false,
+        child: Container(
+          height: 66,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.08),
+                blurRadius: 18,
+                offset: const Offset(0, -6),
+              ),
+            ],
+          ),
+          child: Row(
+            children: List.generate(items.length, (index) {
+              final item = items[index];
+              final active = index == currentIndex;
+              return Expanded(
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(10),
+                  onTap: () => context.go(item.route),
+                  child: Container(
+                    height: 54,
+                    decoration: BoxDecoration(
+                      color: active ? patientMintSoft : Colors.transparent,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          item.icon,
+                          size: 22,
+                          color: active ? patientTeal : const Color(0xFF9AAAC0),
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 3),
+                        Text(
+                          item.label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 11,
+                            height: 1,
+                            color:
+                                active ? patientTeal : const Color(0xFF8FA0B7),
+                            fontWeight:
+                                active ? FontWeight.w600 : FontWeight.w400,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            );
-          }),
+              );
+            }),
+          ),
         ),
       ),
     );

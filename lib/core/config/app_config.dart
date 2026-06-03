@@ -11,22 +11,6 @@ class AppConfig {
   static const Duration connectionTimeout = Duration(seconds: 30);
   static const Duration receiveTimeout = Duration(seconds: 30);
 
-  // Chatbot API Config (OpenAI-compatible custom endpoint/model)
-  static const String chatbotApiBaseUrl =
-      String.fromEnvironment('CHATBOT_API_BASE_URL');
-  static const String chatbotApiKey = String.fromEnvironment('CHATBOT_API_KEY');
-  static const String chatbotModel = String.fromEnvironment('CHATBOT_MODEL');
-
-  // OpenAI Config (fallback)
-  static const String openaiApiKey = String.fromEnvironment('OPENAI_API_KEY');
-
-  // Groq Config (free tier - primary LLM)
-  static const String groqApiKey = String.fromEnvironment(
-    'GROQ_API_KEY',
-    defaultValue: '',
-  );
-  static const String groqModel = 'llama-3.3-70b-versatile';
-
   // Feature Flags
   static const bool enableLogging = bool.fromEnvironment(
     'ENABLE_LOGGING',

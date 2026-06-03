@@ -225,6 +225,7 @@ class SupabaseService {
       therapy: therapy,
       intakePlan: plan,
       recentLogs: logs.take(7).toList(),
+      missedCount: logs.where((log) => log.isMissed).length,
       statusHistory: statusHistory,
     );
   }
@@ -252,8 +253,11 @@ class SupabaseService {
     return DoctorMapSummary(cases: cases);
   }
 
-  Future<TreatmentModel> resetTherapyProgress(String treatmentId) {
-    return therapies.resetProgress(treatmentId);
+  Future<TreatmentModel> resetTherapyProgress(String treatmentId) async {
+    final therapy = await therapies.resetProgress(treatmentId);
+    await medicationLogs.clearRiskLogsForTherapy(treatmentId);
+    await alerts.markTherapyAlertsRead(treatmentId);
+    return therapy;
   }
 
   Future<PatientProfileSummary> updateMedicationReminderPreference({
@@ -446,6 +450,7 @@ class PatientDetailSummary {
   final TreatmentModel? therapy;
   final MedicationIntakePlan? intakePlan;
   final List<MedicationLogModel> recentLogs;
+  final int missedCount;
   final List<TherapyStatusHistoryModel> statusHistory;
 
   const PatientDetailSummary({
@@ -455,6 +460,7 @@ class PatientDetailSummary {
     required this.therapy,
     required this.intakePlan,
     required this.recentLogs,
+    required this.missedCount,
     required this.statusHistory,
   });
 }
@@ -465,8 +471,9 @@ class DoctorMapSummary {
   const DoctorMapSummary({required this.cases});
 
   int get totalInView => cases.length;
-  int get highRiskCount => cases.where((item) => item.isHighRisk).length;
-  int get activeCount => cases.where((item) => item.isActive).length;
+  int get atRiskCount => cases.where((item) => item.isAtRisk).length;
+  int get onTreatmentCount => cases.where((item) => item.isOnTreatment).length;
+  int get failedCount => cases.where((item) => item.isFailed).length;
   int get completedCount => cases.where((item) => item.isCompleted).length;
 }
 
@@ -479,15 +486,27 @@ class DoctorMapCase {
     required this.location,
   });
 
-  bool get isCompleted => item.therapy?.isCompleted ?? false;
-  bool get isActive => (item.therapy?.isOngoing ?? false) && !isHighRisk;
-  bool get isHighRisk {
+  String get statusKey {
     final therapy = item.therapy;
-    return item.missedCount > 0 ||
-        (therapy?.isDefaulted ?? false) ||
-        ((therapy?.isOngoing ?? false) &&
-            (therapy?.adherencePercentage ?? 100) < 80);
+    if (therapy == null) return 'registered';
+    if (therapy.isCompleted) return 'completed';
+    if (item.missedCount > 14 || therapy.isFailed) return 'failed';
+
+    final manualStatus =
+        item.statusHistory.isEmpty ? null : item.statusHistory.first.newStatus;
+    return switch (manualStatus ?? therapy.status) {
+      'ongoing' || 'on_treatment' => 'on_treatment',
+      'at_risk' => 'at_risk',
+      'failed' || 'defaulted' || 'paused' => 'failed',
+      'completed' => 'completed',
+      _ => 'registered',
+    };
   }
+
+  bool get isCompleted => statusKey == 'completed';
+  bool get isOnTreatment => statusKey == 'on_treatment';
+  bool get isAtRisk => statusKey == 'at_risk';
+  bool get isFailed => statusKey == 'failed';
 
   String get patientName {
     final fullName = item.profile.fullName.trim();

@@ -164,15 +164,17 @@ class _PatientManagementPageState extends ConsumerState<PatientManagementPage> {
 
       return switch (_filter) {
         _TherapyFilter.all => true,
-        _TherapyFilter.onTreatment => _isOnTreatment(item),
-        _TherapyFilter.atRisk => _isAtRisk(item),
-        _TherapyFilter.completed => item.therapy?.isCompleted ?? false,
+        _TherapyFilter.onTreatment =>
+          _effectiveStatusKey(item) == 'on_treatment',
+        _TherapyFilter.atRisk => _effectiveStatusKey(item) == 'at_risk',
+        _TherapyFilter.failed => _effectiveStatusKey(item) == 'failed',
+        _TherapyFilter.completed => _effectiveStatusKey(item) == 'completed',
       };
     }).toList();
   }
 }
 
-enum _TherapyFilter { all, onTreatment, atRisk, completed }
+enum _TherapyFilter { all, onTreatment, atRisk, failed, completed }
 
 class _FilterMenu extends StatelessWidget {
   final _TherapyFilter value;
@@ -196,6 +198,7 @@ class _FilterMenu extends StatelessWidget {
           child: Text('On Treatment'),
         ),
         PopupMenuItem(value: _TherapyFilter.atRisk, child: Text('At Risk')),
+        PopupMenuItem(value: _TherapyFilter.failed, child: Text('Failed')),
         PopupMenuItem(value: _TherapyFilter.completed, child: Text('Complete')),
       ],
       child: Container(
@@ -468,18 +471,6 @@ class _LastLogView {
   });
 }
 
-bool _isAtRisk(DoctorPatientDirectoryItem item) {
-  final therapy = item.therapy;
-  return item.missedCount > 0 ||
-      (therapy?.isDefaulted ?? false) ||
-      ((therapy?.isOngoing ?? false) &&
-          (therapy?.adherencePercentage ?? 100) < 80);
-}
-
-bool _isOnTreatment(DoctorPatientDirectoryItem item) {
-  return (item.therapy?.isOngoing ?? false) && !_isAtRisk(item);
-}
-
 String _patientName(DoctorPatientDirectoryItem item) {
   final fullName = item.profile.fullName.trim();
   if (fullName.isNotEmpty) return fullName;
@@ -507,8 +498,8 @@ String _shortId(String value) {
 }
 
 _StatusView _therapyStatus(DoctorPatientDirectoryItem item) {
-  final therapy = item.therapy;
-  if (therapy?.isCompleted ?? false) {
+  final status = _effectiveStatusKey(item);
+  if (status == 'completed') {
     return const _StatusView(
       label: 'Complete',
       color: doctorMintSoft,
@@ -519,7 +510,18 @@ _StatusView _therapyStatus(DoctorPatientDirectoryItem item) {
     );
   }
 
-  if (_isAtRisk(item)) {
+  if (status == 'failed') {
+    return const _StatusView(
+      label: 'Failed',
+      color: doctorDangerSoft,
+      textColor: doctorDanger,
+      progressColor: doctorDanger,
+      avatarColor: doctorDangerSoft,
+      avatarText: doctorDanger,
+    );
+  }
+
+  if (status == 'at_risk') {
     final missed = item.missedCount;
     return _StatusView(
       label: missed > 0 ? 'At Risk ($missed Missed)' : 'At Risk',
@@ -531,7 +533,7 @@ _StatusView _therapyStatus(DoctorPatientDirectoryItem item) {
     );
   }
 
-  if (therapy?.isOngoing ?? false) {
+  if (status == 'on_treatment') {
     return const _StatusView(
       label: 'On Treatment',
       color: doctorMintSoft,
@@ -552,6 +554,31 @@ _StatusView _therapyStatus(DoctorPatientDirectoryItem item) {
   );
 }
 
+String _effectiveStatusKey(DoctorPatientDirectoryItem item) {
+  final therapy = item.therapy;
+  if (therapy == null) return 'registered';
+  if (therapy.isCompleted) return 'completed';
+  if (item.missedCount > 14 || therapy.isFailed) return 'failed';
+
+  final manualStatus = _latestManualStatus(item);
+  if (manualStatus != null) return manualStatus;
+
+  if (therapy.isAtRisk) return 'at_risk';
+  if (therapy.isOngoing) return 'on_treatment';
+  return 'registered';
+}
+
+String? _latestManualStatus(DoctorPatientDirectoryItem item) {
+  if (item.statusHistory.isEmpty) return null;
+  return switch (item.statusHistory.first.newStatus) {
+    'ongoing' || 'on_treatment' => 'on_treatment',
+    'at_risk' => 'at_risk',
+    'failed' || 'defaulted' || 'paused' => 'failed',
+    'completed' => 'completed',
+    _ => null,
+  };
+}
+
 _LastLogView _lastLogLabel(MedicationLogModel? log) {
   if (log == null) {
     return const _LastLogView(
@@ -562,36 +589,47 @@ _LastLogView _lastLogLabel(MedicationLogModel? log) {
   }
 
   final now = DateTime.now();
-  final date = DateTime(
-      log.scheduledAt.year, log.scheduledAt.month, log.scheduledAt.day);
+  final displayTime =
+      log.isTaken && log.takenAt != null ? log.takenAt! : log.scheduledAt;
+  final date = DateTime(displayTime.year, displayTime.month, displayTime.day);
   final today = DateTime(now.year, now.month, now.day);
   final daysAgo = today.difference(date).inDays;
-  final hour = log.scheduledAt.hour.toString().padLeft(2, '0');
-  final minute = log.scheduledAt.minute.toString().padLeft(2, '0');
+  final hour = displayTime.hour.toString().padLeft(2, '0');
+  final minute = displayTime.minute.toString().padLeft(2, '0');
 
   if (log.isMissed) {
+    final missedHour = log.scheduledAt.hour.toString().padLeft(2, '0');
+    final missedMinute = log.scheduledAt.minute.toString().padLeft(2, '0');
     return _LastLogView(
       label: daysAgo <= 0
-          ? 'Missed today'
+          ? 'Missed $missedHour:$missedMinute'
           : daysAgo == 1
-              ? 'Yesterday'
-              : '$daysAgo days ago',
+              ? 'Missed yesterday'
+              : 'Missed $daysAgo days ago',
       icon: Icons.warning_amber_rounded,
       color: doctorDanger,
     );
   }
 
-  if (daysAgo <= 0) {
+  if (log.isTaken) {
     return _LastLogView(
-      label: 'Today, $hour:$minute',
+      label: daysAgo <= 0
+          ? 'Taken $hour:$minute'
+          : daysAgo == 1
+              ? 'Taken yesterday'
+              : 'Taken $daysAgo days ago',
       icon: Icons.check_circle_outline_rounded,
       color: doctorTeal,
     );
   }
 
   return _LastLogView(
-    label: daysAgo == 1 ? 'Yesterday' : '$daysAgo days ago',
-    icon: Icons.check_circle_outline_rounded,
-    color: doctorTeal,
+    label: daysAgo <= 0
+        ? 'Scheduled $hour:$minute'
+        : daysAgo == 1
+            ? 'Scheduled yesterday'
+            : 'Scheduled $daysAgo days ago',
+    icon: Icons.schedule_rounded,
+    color: doctorMuted,
   );
 }
