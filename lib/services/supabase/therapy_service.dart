@@ -186,12 +186,6 @@ class TherapyService {
         .select('*, tb_cases(diagnosis_date), therapy_phases(phase_name)')
         .single();
 
-    await context.client.from('therapy_progress').upsert({
-      'therapy_id': treatmentId,
-      'days_on_therapy': 1,
-      'last_calculated': DateTime.now().toIso8601String(),
-    }, onConflict: 'therapy_id');
-
     await context.client
         .from('therapy_phases')
         .update({

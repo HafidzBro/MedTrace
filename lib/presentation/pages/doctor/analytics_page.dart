@@ -274,22 +274,45 @@ class _OverallAdherenceCard extends StatelessWidget {
               Icon(Icons.bar_chart_rounded, color: doctorMuted),
             ],
           ),
-          const SizedBox(height: 24),
-          Row(
-            children: [
-              _AdherenceRing(value: adherence),
-              const SizedBox(width: 28),
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+          const SizedBox(height: 22),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxWidth < 300;
+              final ring = _AdherenceRing(
+                value: adherence,
+                size: compact ? 118 : 138,
+              );
+              const legend = Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _Legend(color: doctorTeal, text: 'Target >85%'),
+                  SizedBox(height: 10),
+                  _Legend(color: doctorNeutral, text: 'Below Target'),
+                ],
+              );
+
+              if (compact) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    _Legend(color: doctorTeal, text: 'Target >85%'),
-                    SizedBox(height: 12),
-                    _Legend(color: doctorNeutral, text: 'Below Target'),
+                    ring,
+                    const SizedBox(height: 16),
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: legend,
+                    ),
                   ],
-                ),
-              ),
-            ],
+                );
+              }
+
+              return Row(
+                children: [
+                  ring,
+                  const SizedBox(width: 22),
+                  const Expanded(child: legend),
+                ],
+              );
+            },
           ),
         ],
       ),
@@ -299,26 +322,32 @@ class _OverallAdherenceCard extends StatelessWidget {
 
 class _AdherenceRing extends StatelessWidget {
   final double value;
+  final double size;
 
-  const _AdherenceRing({required this.value});
+  const _AdherenceRing({
+    required this.value,
+    this.size = 138,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final textSize = size < 130 ? 25.0 : 30.0;
+    final innerSize = size * 0.78;
     return Container(
-      width: 148,
-      height: 148,
+      width: size,
+      height: size,
       alignment: Alignment.center,
       child: CustomPaint(
-        size: const Size.square(138),
+        size: Size.square(size),
         painter: _AdherenceRingPainter(value),
         child: SizedBox.square(
-          dimension: 108,
+          dimension: innerSize,
           child: Center(
             child: Text(
               '${value.toStringAsFixed(0)}%',
-              style: const TextStyle(
+              style: TextStyle(
                 color: doctorTeal,
-                fontSize: 30,
+                fontSize: textSize,
                 fontWeight: FontWeight.w800,
               ),
             ),
@@ -375,7 +404,6 @@ class _Legend extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
-      mainAxisSize: MainAxisSize.min,
       children: [
         Container(
           width: 10,
@@ -383,7 +411,14 @@ class _Legend extends StatelessWidget {
           decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
         const SizedBox(width: 8),
-        Text(text, style: const TextStyle(color: doctorMuted, fontSize: 13)),
+        Expanded(
+          child: Text(
+            text,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: doctorMuted, fontSize: 12),
+          ),
+        ),
       ],
     );
   }

@@ -6,6 +6,7 @@ import 'package:medtrace/core/constants/app_constants.dart';
 import 'package:medtrace/data/models/chatbot_conversation_model.dart';
 import 'package:medtrace/data/models/chatbot_log_model.dart';
 import 'package:medtrace/data/models/chatbot_message_model.dart';
+import 'package:medtrace/services/chatbot_http_client.dart';
 import 'package:medtrace/services/supabase/patient_service.dart';
 import 'package:medtrace/services/supabase/supabase_service_context.dart';
 
@@ -201,47 +202,60 @@ class ChatbotService {
         ? logs.sublist(logs.length - ChatbotConstants.maxContextMessages)
         : logs;
 
-    final response = await http
-        .post(
-          endpoint,
-          headers: {
-            'Authorization': 'Bearer $apiKey',
-            'Content-Type': 'application/json',
-          },
-          body: jsonEncode({
-            'model': model,
-            'temperature': 0.3,
-            'max_tokens': ChatbotConstants.maxResponseTokens,
-            'messages': [
-              {
-                'role': 'system',
-                'content': ChatbotConstants.systemPromptEN,
-              },
-              for (final log in recentLogs)
+    final client = _chatbotHttpClient();
+    try {
+      final response = await client
+          .post(
+            endpoint,
+            headers: {
+              'Authorization': 'Bearer $apiKey',
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode({
+              'model': model,
+              'temperature': 0.3,
+              'max_tokens': ChatbotConstants.maxResponseTokens,
+              'messages': [
                 {
-                  'role': log.role == 'assistant' ? 'assistant' : 'user',
-                  'content': log.message,
+                  'role': 'system',
+                  'content': ChatbotConstants.systemPromptEN,
                 },
-            ],
-          }),
-        )
-        .timeout(AppConfig.receiveTimeout);
+                for (final log in recentLogs)
+                  {
+                    'role': log.role == 'assistant' ? 'assistant' : 'user',
+                    'content': log.message,
+                  },
+              ],
+            }),
+          )
+          .timeout(AppConfig.receiveTimeout);
 
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw StateError('Chatbot API request failed (${response.statusCode}).');
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw StateError(
+            'Chatbot API request failed (${response.statusCode}).');
+      }
+
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      final choices = body['choices'] as List?;
+      final firstChoice =
+          choices?.isNotEmpty == true ? choices!.first as Map : null;
+      final assistantMessage = firstChoice?['message'] as Map?;
+      final content = assistantMessage?['content']?.toString().trim();
+      if (content == null || content.isEmpty) {
+        throw StateError('Chatbot API returned an empty response.');
+      }
+
+      return content;
+    } finally {
+      client.close();
     }
+  }
 
-    final body = jsonDecode(response.body) as Map<String, dynamic>;
-    final choices = body['choices'] as List?;
-    final firstChoice =
-        choices?.isNotEmpty == true ? choices!.first as Map : null;
-    final assistantMessage = firstChoice?['message'] as Map?;
-    final content = assistantMessage?['content']?.toString().trim();
-    if (content == null || content.isEmpty) {
-      throw StateError('Chatbot API returned an empty response.');
-    }
-
-    return content;
+  http.Client _chatbotHttpClient() {
+    return createChatbotHttpClient(
+      connectionTimeout: AppConfig.connectionTimeout,
+      receiveTimeout: AppConfig.receiveTimeout,
+    );
   }
 
   String _chatCompletionUrl(String baseUrl) {

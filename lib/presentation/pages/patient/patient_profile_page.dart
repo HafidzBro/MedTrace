@@ -16,6 +16,7 @@ class PatientProfilePage extends ConsumerStatefulWidget {
 
 class _PatientProfilePageState extends ConsumerState<PatientProfilePage> {
   bool? _notificationOverride;
+  DateTime? _reminderTimeOverride;
 
   @override
   Widget build(BuildContext context) {
@@ -33,6 +34,7 @@ class _PatientProfilePageState extends ConsumerState<PatientProfilePage> {
     final doctor = summaryValue?.doctor;
     final facilityName = summaryValue?.facilityName;
     final reminder = summaryValue?.medicationReminder;
+    final reminderTime = _reminderTimeOverride ?? reminder?.reminderTime;
     final reminderEnabled =
         _notificationOverride ?? notificationEnabled.valueOrNull ?? true;
 
@@ -85,185 +87,202 @@ class _PatientProfilePageState extends ConsumerState<PatientProfilePage> {
           const SizedBox(width: 14),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(26, 32, 26, 34),
-        child: Column(
-          children: [
-            PatientCard(
-              padding: const EdgeInsets.fromLTRB(24, 42, 24, 28),
-              child: Column(
-                children: [
-                  Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      const PatientAvatar(icon: Icons.person, radius: 44),
-                      Positioned(
-                        right: -6,
-                        bottom: -2,
-                        child: Container(
-                          width: 28,
-                          height: 28,
-                          decoration: const BoxDecoration(
-                            color: patientTeal,
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.edit_rounded,
-                            color: Colors.white,
-                            size: 16,
+      body: RefreshIndicator(
+        color: patientTeal,
+        onRefresh: () => _refreshProfile(ref),
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(26, 32, 26, 34),
+          child: Column(
+            children: [
+              PatientCard(
+                padding: const EdgeInsets.fromLTRB(24, 42, 24, 28),
+                child: Column(
+                  children: [
+                    Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        const PatientAvatar(icon: Icons.person, radius: 44),
+                        Positioned(
+                          right: -6,
+                          bottom: -2,
+                          child: Container(
+                            width: 28,
+                            height: 28,
+                            decoration: const BoxDecoration(
+                              color: patientTeal,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.edit_rounded,
+                              color: Colors.white,
+                              size: 16,
+                            ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  Text(
-                    name,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: patientText,
-                      fontSize: 22,
-                      fontWeight: FontWeight.w700,
+                      ],
                     ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Patient ID: ${patient?.patientCode ?? 'Generating...'}',
-                    style: const TextStyle(color: patientMuted, fontSize: 15),
-                  ),
-                  const SizedBox(height: 28),
-                  Container(height: 1, color: patientBorder),
-                  const SizedBox(height: 24),
-                  _InfoRow(
-                    icon: Icons.mail_outline_rounded,
-                    label: 'Email',
-                    value: email,
-                  ),
-                  const SizedBox(height: 22),
-                  _InfoRow(
-                    icon: Icons.phone_outlined,
-                    label: 'Phone',
-                    value: profile?.phoneNumber?.trim().isNotEmpty == true
-                        ? profile!.phoneNumber!
-                        : 'Belum diisi',
-                  ),
-                  const SizedBox(height: 22),
-                  _InfoRow(
-                    icon: Icons.home_outlined,
-                    label: 'Address',
-                    value: patient?.address?.trim().isNotEmpty == true
-                        ? patient!.address!
-                        : 'Belum diisi',
-                  ),
-                ],
+                    const SizedBox(height: 20),
+                    Text(
+                      name,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: patientText,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Patient ID: ${patient?.patientCode ?? 'Generating...'}',
+                      style: const TextStyle(color: patientMuted, fontSize: 15),
+                    ),
+                    const SizedBox(height: 28),
+                    Container(height: 1, color: patientBorder),
+                    const SizedBox(height: 24),
+                    _InfoRow(
+                      icon: Icons.mail_outline_rounded,
+                      label: 'Email',
+                      value: email,
+                    ),
+                    const SizedBox(height: 22),
+                    _InfoRow(
+                      icon: Icons.phone_outlined,
+                      label: 'Phone',
+                      value: profile?.phoneNumber?.trim().isNotEmpty == true
+                          ? profile!.phoneNumber!
+                          : 'Belum diisi',
+                    ),
+                    const SizedBox(height: 22),
+                    _InfoRow(
+                      icon: Icons.home_outlined,
+                      label: 'Address',
+                      value: patient?.address?.trim().isNotEmpty == true
+                          ? patient!.address!
+                          : 'Belum diisi',
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(height: 56),
-            PatientCard(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const _SectionHeader(
-                    icon: Icons.add_box_outlined,
-                    title: 'Treatment Account',
-                  ),
-                  const SizedBox(height: 20),
-                  _TreatmentAccountTile(
-                    icon: Icons.business_rounded,
-                    label: 'Primary Facility',
-                    title: facilityName?.trim().isNotEmpty == true
-                        ? facilityName!
-                        : 'Assigned Care Team',
-                    subtitle: 'Primary treatment facility',
-                  ),
-                  const SizedBox(height: 18),
-                  _TreatmentAccountTile(
-                    icon: Icons.person,
-                    label: 'Lead Clinician',
-                    title: doctor?.fullName.trim().isNotEmpty == true
-                        ? doctor!.fullName
-                        : doctor?.email ?? 'Assigned Doctor',
-                    subtitle: 'Lead clinician',
-                  ),
-                ],
+              const SizedBox(height: 56),
+              PatientCard(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const _SectionHeader(
+                      icon: Icons.add_box_outlined,
+                      title: 'Treatment Account',
+                    ),
+                    const SizedBox(height: 20),
+                    _TreatmentAccountTile(
+                      icon: Icons.business_rounded,
+                      label: 'Primary Facility',
+                      title: facilityName?.trim().isNotEmpty == true
+                          ? facilityName!
+                          : 'Assigned Care Team',
+                      subtitle: 'Primary treatment facility',
+                    ),
+                    const SizedBox(height: 18),
+                    _TreatmentAccountTile(
+                      icon: Icons.person,
+                      label: 'Lead Clinician',
+                      title: doctor?.fullName.trim().isNotEmpty == true
+                          ? doctor!.fullName
+                          : doctor?.email ?? 'Assigned Doctor',
+                      subtitle: 'Lead clinician',
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(height: 16),
-            PatientCard(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const _SectionHeader(
-                    icon: Icons.notifications_active_outlined,
-                    title: 'Notifications',
-                  ),
-                  const SizedBox(height: 22),
-                  Row(
-                    children: [
-                      const Expanded(
-                        child: _SettingsText(
-                          title: 'Daily Reminders',
-                          subtitle: 'Show medication pop-up notifications',
+              const SizedBox(height: 16),
+              PatientCard(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const _SectionHeader(
+                      icon: Icons.notifications_active_outlined,
+                      title: 'Notifications',
+                    ),
+                    const SizedBox(height: 22),
+                    Row(
+                      children: [
+                        const Expanded(
+                          child: _SettingsText(
+                            title: 'Daily Reminders',
+                            subtitle: 'Show medication pop-up notifications',
+                          ),
                         ),
-                      ),
-                      Switch(
-                        value: reminderEnabled,
-                        onChanged: user == null || notificationEnabled.isLoading
-                            ? null
-                            : (value) => _updateReminderEnabled(
-                                  context,
-                                  ref,
-                                  user.id,
-                                  value,
-                                ),
-                        activeThumbColor: Colors.white,
-                        activeTrackColor: patientTeal,
-                      ),
-                    ],
-                  ),
-                  const _Divider(),
-                  _SettingsValue(
-                    title: 'Reminder Time',
-                    subtitle: 'When to alert you',
-                    value: _formatReminderTime(reminder?.reminderTime),
-                    onTap: user == null
-                        ? null
-                        : () => _pickReminderTime(context, ref, user.id),
-                  ),
-                ],
+                        Switch(
+                          value: reminderEnabled,
+                          onChanged:
+                              user == null || notificationEnabled.isLoading
+                                  ? null
+                                  : (value) => _updateReminderEnabled(
+                                        context,
+                                        ref,
+                                        user.id,
+                                        value,
+                                      ),
+                          activeThumbColor: Colors.white,
+                          activeTrackColor: patientTeal,
+                        ),
+                      ],
+                    ),
+                    const _Divider(),
+                    _SettingsValue(
+                      title: 'Reminder Time',
+                      subtitle: 'When to alert you',
+                      value: _formatReminderTime(reminderTime),
+                      onTap: user == null
+                          ? null
+                          : () => _pickReminderTime(context, ref, user.id),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(height: 34),
-            SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: OutlinedButton.icon(
-                onPressed: () async {
-                  await ref.read(authProvider.notifier).logout();
-                  if (!context.mounted) return;
-                  context.go(AppRoutes.login);
-                },
-                icon: const Icon(Icons.logout_rounded, size: 18),
-                label: const Text('Sign Out'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: patientText,
-                  side: const BorderSide(color: patientBorder),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  textStyle: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
+              const SizedBox(height: 34),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: OutlinedButton.icon(
+                  onPressed: () async {
+                    await ref.read(authProvider.notifier).logout();
+                    if (!context.mounted) return;
+                    context.go(AppRoutes.login);
+                  },
+                  icon: const Icon(Icons.logout_rounded, size: 18),
+                  label: const Text('Sign Out'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: patientText,
+                    side: const BorderSide(color: patientBorder),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    textStyle: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
+  }
+
+  Future<void> _refreshProfile(WidgetRef ref) async {
+    ref.invalidate(currentPatientProfileSummaryProvider);
+    ref.invalidate(currentPatientNotificationEnabledProvider);
+    final summary = await ref.read(currentPatientProfileSummaryProvider.future);
+    if (!mounted) return;
+    setState(() {
+      _reminderTimeOverride = summary.medicationReminder.reminderTime;
+      _notificationOverride = null;
+    });
   }
 
   Future<void> _updateReminderEnabled(
@@ -308,6 +327,7 @@ class _PatientProfilePageState extends ConsumerState<PatientProfilePage> {
     if (picked == null) return;
 
     final reminderTime = DateTime(0, 1, 1, picked.hour, picked.minute);
+    setState(() => _reminderTimeOverride = reminderTime);
     final updated = await ref
         .read(supabaseServiceProvider)
         .updateMedicationReminderPreference(
@@ -322,6 +342,8 @@ class _PatientProfilePageState extends ConsumerState<PatientProfilePage> {
       notificationsEnabled: notificationsEnabled,
     );
     ref.invalidate(currentPatientProfileSummaryProvider);
+    ref.invalidate(currentPatientDashboardSummaryProvider);
+    ref.invalidate(currentPatientIntakePlanProvider);
   }
 
   Future<void> _syncLocalMedicationNotification(

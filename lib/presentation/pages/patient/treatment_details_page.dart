@@ -27,6 +27,7 @@ class TreatmentDetailsPage extends ConsumerWidget {
       appBar: PatientTopBar(
         title: 'My Progress',
         leadingIcon: Icons.person,
+        onLeadingTap: () => context.go(AppRoutes.patientProfile),
         actions: [
           IconButton(
             onPressed: () => context.go(AppRoutes.patientNotifications),
@@ -35,104 +36,119 @@ class TreatmentDetailsPage extends ConsumerWidget {
           const SizedBox(width: 14),
         ],
       ),
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(36, 32, 36, 104),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (isLoading)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 48),
-                child: Center(
-                  child: CircularProgressIndicator(color: patientTeal),
+      child: RefreshIndicator(
+        color: patientTeal,
+        onRefresh: () => _refresh(ref),
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(36, 32, 36, 104),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (isLoading)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 48),
+                  child: Center(
+                    child: CircularProgressIndicator(color: patientTeal),
+                  ),
+                )
+              else ...[
+                _CurrentStatusCard(
+                  adherence: summary.valueOrNull?.adherencePercentage ?? 0,
+                  monthLabel: therapyCompleted
+                      ? 'Completed'
+                      : _monthLabel(daysOnTherapy),
+                  hasTherapy: therapy != null,
+                  isCompleted: therapyCompleted,
                 ),
-              )
-            else ...[
-              _CurrentStatusCard(
-                adherence: summary.valueOrNull?.adherencePercentage ?? 0,
-                monthLabel:
-                    therapyCompleted ? 'Completed' : _monthLabel(daysOnTherapy),
-                hasTherapy: therapy != null,
-                isCompleted: therapyCompleted,
-              ),
+                const SizedBox(height: 32),
+                _PhaseCard(
+                  plan: plan,
+                  note: therapy?.description,
+                ),
+              ],
               const SizedBox(height: 32),
-              _PhaseCard(
-                plan: plan,
-                note: therapy?.description,
+              const SectionTitle('Your Journey'),
+              const SizedBox(height: 24),
+              _JourneyCard(
+                state: therapy == null
+                    ? _JourneyState.locked
+                    : _JourneyState.completed,
+                label: 'Completed',
+                when: 'Week 0',
+                title: 'Initial Screening',
+                body:
+                    'Diagnosis confirmed and personalized treatment plan established with your care team.',
+              ),
+              const SizedBox(height: 20),
+              _JourneyCard(
+                state: _phaseState(
+                  hasTherapy: therapy != null,
+                  days: daysOnTherapy,
+                  startDay: 0,
+                  endDay: 60,
+                ),
+                label: _phaseLabel(
+                  hasTherapy: therapy != null,
+                  days: daysOnTherapy,
+                  startDay: 0,
+                  endDay: 60,
+                ),
+                when: 'Month 1-2',
+                title: 'Intensive Phase',
+                body:
+                    'Four-drug daily regimen: Rifampicin, Isoniazid, Pyrazinamide, and Ethambutol.',
+              ),
+              const SizedBox(height: 20),
+              _JourneyCard(
+                state: _phaseState(
+                  hasTherapy: therapy != null,
+                  days: daysOnTherapy,
+                  startDay: 60,
+                  endDay: 180,
+                ),
+                label: _phaseLabel(
+                  hasTherapy: therapy != null,
+                  days: daysOnTherapy,
+                  startDay: 60,
+                  endDay: 180,
+                ),
+                when: 'Month 3-6',
+                title: 'Continuation Phase',
+                body:
+                    'Two-drug daily regimen: Rifampicin and Isoniazid until therapy completion.',
+              ),
+              const SizedBox(height: 20),
+              _JourneyCard(
+                state: therapyCompleted
+                    ? _JourneyState.completed
+                    : therapy == null
+                        ? _JourneyState.locked
+                        : _JourneyState.upcoming,
+                label: therapyCompleted
+                    ? 'Completed'
+                    : therapy == null
+                        ? 'Locked'
+                        : 'Upcoming',
+                when: 'Month 6',
+                title: 'Treatment Completion',
+                body:
+                    'Treatment is completed after 180 therapy days and final clinical review.',
               ),
             ],
-            const SizedBox(height: 32),
-            const SectionTitle('Your Journey'),
-            const SizedBox(height: 24),
-            _JourneyCard(
-              state: therapy == null
-                  ? _JourneyState.locked
-                  : _JourneyState.completed,
-              label: 'Completed',
-              when: 'Week 0',
-              title: 'Initial Screening',
-              body:
-                  'Diagnosis confirmed and personalized treatment plan established with your care team.',
-            ),
-            const SizedBox(height: 20),
-            _JourneyCard(
-              state: _phaseState(
-                hasTherapy: therapy != null,
-                days: daysOnTherapy,
-                startDay: 0,
-                endDay: 60,
-              ),
-              label: _phaseLabel(
-                hasTherapy: therapy != null,
-                days: daysOnTherapy,
-                startDay: 0,
-                endDay: 60,
-              ),
-              when: 'Month 1-2',
-              title: 'Intensive Phase',
-              body:
-                  'Four-drug daily regimen: Rifampicin, Isoniazid, Pyrazinamide, and Ethambutol.',
-            ),
-            const SizedBox(height: 20),
-            _JourneyCard(
-              state: _phaseState(
-                hasTherapy: therapy != null,
-                days: daysOnTherapy,
-                startDay: 60,
-                endDay: 180,
-              ),
-              label: _phaseLabel(
-                hasTherapy: therapy != null,
-                days: daysOnTherapy,
-                startDay: 60,
-                endDay: 180,
-              ),
-              when: 'Month 3-6',
-              title: 'Continuation Phase',
-              body:
-                  'Two-drug daily regimen: Rifampicin and Isoniazid until therapy completion.',
-            ),
-            const SizedBox(height: 20),
-            _JourneyCard(
-              state: therapyCompleted
-                  ? _JourneyState.completed
-                  : therapy == null
-                      ? _JourneyState.locked
-                      : _JourneyState.upcoming,
-              label: therapyCompleted
-                  ? 'Completed'
-                  : therapy == null
-                      ? 'Locked'
-                      : 'Upcoming',
-              when: 'Month 6',
-              title: 'Treatment Completion',
-              body:
-                  'Treatment is completed after 180 therapy days and final clinical review.',
-            ),
-          ],
+          ),
         ),
       ),
     );
+  }
+
+  Future<void> _refresh(WidgetRef ref) async {
+    ref.invalidate(currentPatientDashboardSummaryProvider);
+    ref.invalidate(currentPatientIntakePlanProvider);
+    await Future.wait([
+      ref.read(currentPatientDashboardSummaryProvider.future),
+      ref.read(currentPatientIntakePlanProvider.future),
+    ]);
   }
 
   _JourneyState _phaseState({

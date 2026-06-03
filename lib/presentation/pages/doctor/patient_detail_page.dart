@@ -146,6 +146,7 @@ class PatientDetailPage extends ConsumerWidget {
           .read(supabaseServiceProvider)
           .resetTherapyProgress(summary.therapy!.id);
       ref.invalidate(patientDetailSummaryProvider(patientId));
+      ref.invalidate(currentDoctorDashboardSummaryProvider);
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Therapy progress reset to day 1.')),
@@ -610,8 +611,12 @@ class _UpdateStatusSheetState extends ConsumerState<_UpdateStatusSheet> {
   @override
   void initState() {
     super.initState();
+    final latestManualStatus = widget.summary.statusHistory.isEmpty
+        ? null
+        : widget.summary.statusHistory.first.newStatus;
     _selectedStatusKey = _statusKeyFromDatabase(
-        widget.summary.therapy?.status ?? 'on_treatment');
+      latestManualStatus ?? widget.summary.therapy?.status ?? 'on_treatment',
+    );
   }
 
   @override
@@ -693,8 +698,7 @@ class _UpdateStatusSheetState extends ConsumerState<_UpdateStatusSheet> {
                       ),
                     ),
                     DoctorChip(
-                      label: _therapyStatus(widget.summary.therapy!.status)
-                          .toUpperCase(),
+                      label: _statusLabel(widget.summary).toUpperCase(),
                       icon: Icons.medication_liquid_rounded,
                       color: doctorTeal2,
                       textColor: const Color(0xFFA9DAD8),
@@ -1271,8 +1275,24 @@ String _statusLabel(PatientDetailSummary? summary) {
   final therapy = summary?.therapy;
   if (therapy == null) return 'No Active Therapy';
   if (therapy.isCompleted) return 'Completed';
+  final manualStatus = _latestManualStatus(summary);
+  if (manualStatus != null) return _therapyStatus(manualStatus);
   if (_isAtRisk(summary)) return 'At Risk';
   return _therapyStatus(therapy.status);
+}
+
+String? _latestManualStatus(PatientDetailSummary? summary) {
+  final histories = summary?.statusHistory;
+  if (histories == null || histories.isEmpty) return null;
+  final latest = histories.first.newStatus;
+  if (latest == 'at_risk' ||
+      latest == 'paused' ||
+      latest == 'completed' ||
+      latest == 'on_treatment' ||
+      latest == 'ongoing') {
+    return latest;
+  }
+  return null;
 }
 
 String _therapyStatus(String status) {
