@@ -21,7 +21,7 @@ class PatientDashboardPage extends ConsumerWidget {
     return PatientMockScaffold(
       currentIndex: 0,
       appBar: PatientTopBar(
-        title: 'Good Morning',
+        title: _timeGreeting(),
         leadingIcon: Icons.person,
         onLeadingTap: () => context.go(AppRoutes.patientProfile),
       ),
@@ -174,6 +174,13 @@ class PatientDashboardPage extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  static String _timeGreeting() {
+    final hour = DateTime.now().hour;
+    if (hour < 12) return 'Good Morning';
+    if (hour < 17) return 'Good Afternoon';
+    return 'Good Evening';
   }
 
   static String _firstName(String value) {

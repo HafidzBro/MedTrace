@@ -33,7 +33,7 @@ class DoctorDashboardPage extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Good morning, $doctorName',
+              '${_timeGreeting()}, $doctorName',
               style: const TextStyle(
                 color: doctorText,
                 fontSize: 26,
@@ -142,6 +142,13 @@ class DoctorDashboardPage extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  static String _timeGreeting() {
+    final hour = DateTime.now().hour;
+    if (hour < 12) return 'Good morning';
+    if (hour < 17) return 'Good afternoon';
+    return 'Good evening';
   }
 
   static String _doctorName(String value) {

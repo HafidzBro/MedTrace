@@ -1,13 +1,39 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
+import 'package:medtrace/data/models/alert_model.dart';
 import 'package:medtrace/presentation/pages/doctor/doctor_mockup_widgets.dart';
+import 'package:medtrace/presentation/providers/app_providers.dart';
+import 'package:medtrace/presentation/providers/feature_providers.dart';
 import 'package:medtrace/presentation/router/app_routes.dart';
 
-class AlertsPage extends StatelessWidget {
+class AlertsPage extends ConsumerStatefulWidget {
   const AlertsPage({super.key});
 
   @override
+  ConsumerState<AlertsPage> createState() => _AlertsPageState();
+}
+
+class _AlertsPageState extends ConsumerState<AlertsPage> {
+  String _filter = 'all';
+
+  @override
   Widget build(BuildContext context) {
+    final user = ref.watch(authProvider).user;
+    if (user == null) {
+      return const DoctorMockScaffold(
+        currentIndex: 3,
+        appBar: DoctorTopBar(title: 'MedTrace'),
+        child: Center(child: Text('Not authenticated')),
+      );
+    }
+
+    final alertsState = ref.watch(doctorAlertsProvider(user.id));
+    final filteredAlerts = _applyFilter(alertsState.alerts);
+    final hasHighPriority = alertsState.alerts
+        .any((a) => a.severity == 'critical' || a.severity == 'high');
+
     return DoctorMockScaffold(
       currentIndex: 3,
       appBar: const DoctorTopBar(title: 'MedTrace'),
@@ -16,215 +42,403 @@ class AlertsPage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Alert Center',
-              style: TextStyle(
-                  color: doctorText, fontSize: 26, fontWeight: FontWeight.w800),
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              'Review and resolve urgent patient notifications.',
-              style: TextStyle(color: doctorMuted, fontSize: 15),
-            ),
-            const SizedBox(height: 4),
-            ElevatedButton.icon(
-              onPressed: () {},
-              icon: const Icon(Icons.filter_list_rounded, size: 17),
-              label: const Text('Filter'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: doctorTeal2,
-                foregroundColor: Colors.white,
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(999)),
-              ),
-            ),
-            const SizedBox(height: 32),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: doctorDangerSoft,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: const Color(0xFFFF9D9D)),
-              ),
-              child: const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      DoctorChip(
-                          label: '! HIGH PRIORITY',
-                          color: doctorDanger,
-                          textColor: Colors.white),
-                      SizedBox(width: 16),
-                      Text('Just now',
-                          style: TextStyle(color: doctorDanger, fontSize: 13)),
-                    ],
-                  ),
-                  SizedBox(height: 20),
-                  Row(
-                    children: [
-                      Icon(Icons.warning_rounded, color: doctorDanger),
-                      SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          'High-Risk Default Warning',
-                          style: TextStyle(
-                              color: doctorDanger,
-                              fontSize: 20,
-                              fontWeight: FontWeight.w800),
-                        ),
+                      const Text(
+                        'Alert Center',
+                        style: TextStyle(
+                            color: doctorText,
+                            fontSize: 26,
+                            fontWeight: FontWeight.w800),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${alertsState.alerts.length} total alert${alertsState.alerts.length == 1 ? '' : 's'}',
+                        style:
+                            const TextStyle(color: doctorMuted, fontSize: 15),
                       ),
                     ],
                   ),
-                  SizedBox(height: 10),
-                  Text(
-                    'System algorithm has flagged multiple missed checkpoints. Immediate outreach required to prevent treatment default.',
-                    style: TextStyle(
-                        color: doctorDanger, fontSize: 15, height: 1.35),
+                ),
+                if (alertsState.isLoading)
+                  const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: doctorTeal),
                   ),
-                ],
+              ],
+            ),
+            const SizedBox(height: 16),
+            _FilterChips(
+              selected: _filter,
+              onSelect: (v) => setState(() => _filter = v),
+              alerts: alertsState.alerts,
+            ),
+            const SizedBox(height: 24),
+            if (hasHighPriority && _filter == 'all')
+              _HighPriorityBanner(
+                count: alertsState.alerts
+                    .where((a) =>
+                        a.severity == 'critical' || a.severity == 'high')
+                    .length,
               ),
-            ),
-            const SizedBox(height: 86),
-            _AlertCard(
-              priority: 'High Priority',
-              time: '2 hours ago',
-              title: 'Missed Medication Alert',
-              patient: 'John Doe',
-              meta: 'ID: #882-JD',
-              body:
-                  'Patient has missed 2 consecutive scheduled doses according to the VDOT system log.',
-              filledButton: true,
-              onView: () => context.go(AppRoutes.patientDetail,
-                  extra: {'patientName': 'John Doe'}),
-            ),
-            const SizedBox(height: 18),
-            _AlertCard(
-              priority: 'Medium Priority',
-              priorityColor: doctorNeutral,
-              priorityText: const Color(0xFF50585C),
-              time: 'Yesterday, 14:30',
-              title: 'Therapy Status Change',
-              patient: 'Maria Garcia',
-              meta: 'Phase 2',
-              body:
-                  'Lab results indicate a need for regimen adjustment. Sputum conversion delayed.',
-              onView: () => context.go(AppRoutes.patientDetail,
-                  extra: {'patientName': 'Maria Garcia'}),
-            ),
+            if (hasHighPriority && _filter == 'all') const SizedBox(height: 20),
+            if (alertsState.error != null)
+              _ErrorTile(message: alertsState.error!)
+            else if (filteredAlerts.isEmpty && !alertsState.isLoading)
+              _EmptyTile(filter: _filter)
+            else
+              ...filteredAlerts.map(
+                (alert) => Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: _AlertCard(
+                    alert: alert,
+                    onView: () => context.go(
+                      AppRoutes.patientDetail,
+                      extra: {'patientId': alert.patientId},
+                    ),
+                    onResolve: alert.actionTaken
+                        ? null
+                        : () => ref
+                            .read(doctorAlertsProvider(user.id).notifier)
+                            .markAsResolved(alert.alertId),
+                  ),
+                ),
+              ),
           ],
         ),
+      ),
+    );
+  }
+
+  List<AlertModel> _applyFilter(List<AlertModel> alerts) {
+    switch (_filter) {
+      case 'high':
+        return alerts
+            .where(
+                (a) => a.severity == 'high' || a.severity == 'critical')
+            .toList();
+      case 'medium':
+        return alerts.where((a) => a.severity == 'medium').toList();
+      case 'resolved':
+        return alerts.where((a) => a.actionTaken).toList();
+      default:
+        return alerts;
+    }
+  }
+}
+
+class _FilterChips extends StatelessWidget {
+  final String selected;
+  final ValueChanged<String> onSelect;
+  final List<AlertModel> alerts;
+
+  const _FilterChips({
+    required this.selected,
+    required this.onSelect,
+    required this.alerts,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final options = [
+      ('all', 'All (${alerts.length})'),
+      (
+        'high',
+        'High (${alerts.where((a) => a.severity == 'high' || a.severity == 'critical').length})'
+      ),
+      (
+        'medium',
+        'Medium (${alerts.where((a) => a.severity == 'medium').length})'
+      ),
+      ('resolved', 'Resolved (${alerts.where((a) => a.actionTaken).length})'),
+    ];
+
+    return Wrap(
+      spacing: 8,
+      children: options.map((opt) {
+        final isSelected = selected == opt.$1;
+        return GestureDetector(
+          onTap: () => onSelect(opt.$1),
+          child: Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: BoxDecoration(
+              color: isSelected ? doctorTeal2 : Colors.white,
+              border: Border.all(
+                  color: isSelected ? doctorTeal2 : const Color(0xFFB7C3C3)),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              opt.$2,
+              style: TextStyle(
+                color: isSelected ? Colors.white : doctorMuted,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+}
+
+class _HighPriorityBanner extends StatelessWidget {
+  final int count;
+  const _HighPriorityBanner({required this.count});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: doctorDangerSoft,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFFF9D9D)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.warning_rounded, color: doctorDanger),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              '$count high-priority alert${count == 1 ? '' : 's'} require immediate attention.',
+              style: const TextStyle(
+                  color: doctorDanger, fontSize: 14, fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
 class _AlertCard extends StatelessWidget {
-  final String priority;
-  final Color priorityColor;
-  final Color priorityText;
-  final String time;
-  final String title;
-  final String patient;
-  final String meta;
-  final String body;
-  final bool filledButton;
+  final AlertModel alert;
   final VoidCallback onView;
+  final VoidCallback? onResolve;
 
   const _AlertCard({
-    required this.priority,
-    this.priorityColor = doctorDangerSoft,
-    this.priorityText = doctorDanger,
-    required this.time,
-    required this.title,
-    required this.patient,
-    required this.meta,
-    required this.body,
-    this.filledButton = false,
+    required this.alert,
     required this.onView,
+    this.onResolve,
   });
 
   @override
   Widget build(BuildContext context) {
+    final isCritical =
+        alert.severity == 'critical' || alert.severity == 'high';
+    final isResolved = alert.actionTaken;
+
+    final priorityLabel = alert.severity == 'critical'
+        ? 'Critical'
+        : alert.severity == 'high'
+            ? 'High Priority'
+            : alert.severity == 'medium'
+                ? 'Medium Priority'
+                : 'Low Priority';
+
+    final priorityBg = isCritical
+        ? doctorDangerSoft
+        : alert.severity == 'medium'
+            ? const Color(0xFFFFF3E0)
+            : doctorNeutral;
+
+    final priorityFg = isCritical
+        ? doctorDanger
+        : alert.severity == 'medium'
+            ? const Color(0xFF8C4A1F)
+            : const Color(0xFF50585C);
+
+    final patientName = alert.patientName?.isNotEmpty == true
+        ? alert.patientName!
+        : (alert.patientEmail?.isNotEmpty == true
+            ? alert.patientEmail!
+            : 'Patient');
+
+    final displayTitle = alert.title?.isNotEmpty == true
+        ? alert.title!
+        : _formatType(alert.type);
+
+    final timeStr = _formatTime(alert.createdAt);
+
     return DoctorCard(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(20),
+      borderColor: isResolved
+          ? doctorBorder
+          : isCritical
+              ? const Color(0xFFFF9D9D)
+              : doctorBorder,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
               DoctorChip(
-                  label: priority,
-                  color: priorityColor,
-                  textColor: priorityText),
+                  label: priorityLabel,
+                  color: priorityBg,
+                  textColor: priorityFg),
+              if (isResolved) ...[
+                const SizedBox(width: 8),
+                const DoctorChip(
+                    label: 'Resolved',
+                    color: Color(0xFFE8F5E9),
+                    textColor: Color(0xFF2E7D32)),
+              ],
               const Spacer(),
-              Text(time,
-                  style: const TextStyle(color: doctorMuted, fontSize: 13)),
+              Text(timeStr,
+                  style: const TextStyle(color: doctorMuted, fontSize: 12)),
             ],
           ),
-          const SizedBox(height: 18),
-          Text(title,
-              style: const TextStyle(
-                  color: doctorText,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800)),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
+          Text(
+            displayTitle,
+            style: const TextStyle(
+                color: doctorText, fontSize: 18, fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 10),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
             decoration: BoxDecoration(
               color: const Color(0xFFF1F4F4),
               borderRadius: BorderRadius.circular(6),
             ),
-            child: Wrap(
-              crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: 8,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
                 const Icon(Icons.person_outline_rounded,
-                    size: 16, color: doctorTeal),
-                Text(patient,
+                    size: 15, color: doctorTeal),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    patientName,
                     style: const TextStyle(
-                        color: doctorTeal, fontWeight: FontWeight.w700)),
-                Text('· $meta', style: const TextStyle(color: doctorMuted)),
+                        color: doctorTeal,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
               ],
             ),
           ),
-          const SizedBox(height: 18),
-          Text(body,
+          if (alert.description?.isNotEmpty == true) ...[
+            const SizedBox(height: 12),
+            Text(
+              alert.description!,
               style: const TextStyle(
-                  color: Color(0xFF50585C), fontSize: 15, height: 1.35)),
-          const SizedBox(height: 28),
-          Container(height: 1, color: doctorBorder),
+                  color: Color(0xFF50585C), fontSize: 14, height: 1.4),
+            ),
+          ],
+          const SizedBox(height: 18),
+          const Divider(color: doctorBorder, height: 1),
           const SizedBox(height: 12),
-          Align(
-            alignment: Alignment.centerRight,
-            child: filledButton
-                ? ElevatedButton.icon(
-                    onPressed: onView,
-                    icon: const Icon(Icons.open_in_new_rounded, size: 17),
-                    label: const Text('View Patient'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: doctorTeal2,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(7)),
-                    ),
-                  )
-                : OutlinedButton.icon(
-                    onPressed: onView,
-                    icon: const Icon(Icons.arrow_forward_rounded, size: 17),
-                    label: const Text('View Patient'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: doctorTeal,
-                      side: const BorderSide(color: doctorTeal),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(7)),
-                    ),
-                  ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              if (onResolve != null)
+                TextButton(
+                  onPressed: onResolve,
+                  style: TextButton.styleFrom(foregroundColor: doctorMuted),
+                  child: const Text('Mark Resolved'),
+                ),
+              if (onResolve != null) const SizedBox(width: 8),
+              ElevatedButton.icon(
+                onPressed: onView,
+                icon: const Icon(Icons.open_in_new_rounded, size: 15),
+                label: const Text('View Patient'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: doctorTeal2,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(7)),
+                ),
+              ),
+            ],
           ),
         ],
       ),
+    );
+  }
+
+  static String _formatType(String value) {
+    if (value.isEmpty) return 'Alert';
+    return value
+        .split('_')
+        .where((w) => w.isNotEmpty)
+        .map((w) => '${w[0].toUpperCase()}${w.substring(1)}')
+        .join(' ');
+  }
+
+  static String _formatTime(DateTime dt) {
+    final now = DateTime.now();
+    final diff = now.difference(dt);
+    if (diff.inMinutes < 1) return 'Just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    if (diff.inDays == 1) return 'Yesterday';
+    return DateFormat('MMM d').format(dt);
+  }
+}
+
+class _EmptyTile extends StatelessWidget {
+  final String filter;
+  const _EmptyTile({required this.filter});
+
+  @override
+  Widget build(BuildContext context) {
+    final msg = filter == 'resolved'
+        ? 'No resolved alerts yet.'
+        : filter == 'all'
+            ? 'No alerts at this time.'
+            : 'No $filter priority alerts.';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(32),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF2F4F4),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: doctorBorder),
+      ),
+      child: Column(
+        children: [
+          const Icon(Icons.check_circle_outline_rounded,
+              color: doctorTeal, size: 40),
+          const SizedBox(height: 12),
+          Text(msg,
+              style: const TextStyle(color: doctorMuted, fontSize: 15),
+              textAlign: TextAlign.center),
+        ],
+      ),
+    );
+  }
+}
+
+class _ErrorTile extends StatelessWidget {
+  final String message;
+  const _ErrorTile({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: doctorDangerSoft,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFFF9D9D)),
+      ),
+      child: Text(message,
+          style: const TextStyle(color: doctorDanger, fontSize: 14)),
     );
   }
 }

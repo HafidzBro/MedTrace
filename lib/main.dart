@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:medtrace/core/config/app_config.dart';
 import 'package:medtrace/presentation/providers/app_providers.dart';
@@ -38,18 +39,18 @@ void main() async {
   runApp(const ProviderScope(child: MedTraceApp()));
 }
 
+GoRouter? _appRouter;
+
 void _handleNotificationTap(String? payload) {
   if (payload == null) return;
   try {
     final data = jsonDecode(payload) as Map<String, dynamic>;
     final route = data['route'] as String?;
     if (route != null) {
-      _navigatorKey.currentState?.context;
+      _appRouter?.go(route);
     }
   } catch (_) {}
 }
-
-final _navigatorKey = GlobalKey<NavigatorState>();
 
 class MedTraceApp extends ConsumerWidget {
   const MedTraceApp({super.key});
@@ -57,6 +58,7 @@ class MedTraceApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(appRouterProvider);
+    _appRouter = router;
     final theme = ref.watch(appThemeProvider);
 
     return MaterialApp.router(
