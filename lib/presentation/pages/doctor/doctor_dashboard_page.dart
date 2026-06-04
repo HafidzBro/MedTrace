@@ -27,118 +27,124 @@ class DoctorDashboardPage extends ConsumerWidget {
         centeredTitle: true,
         onLeadingTap: () => context.go(AppRoutes.doctorProfile),
       ),
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(32, 30, 32, 104),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '${_timeGreeting()}, $doctorName',
-              style: const TextStyle(
-                color: doctorText,
-                fontSize: 26,
-                fontWeight: FontWeight.w800,
-                height: 1.15,
+      child: RefreshIndicator(
+        color: doctorTeal,
+        onRefresh: () => _refresh(ref),
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(32, 30, 32, 104),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${_timeGreeting()}, $doctorName',
+                style: const TextStyle(
+                  color: doctorText,
+                  fontSize: 26,
+                  fontWeight: FontWeight.w800,
+                  height: 1.15,
+                ),
               ),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Here is your patient overview for today.',
-              style: TextStyle(color: doctorMuted, fontSize: 15),
-            ),
-            const SizedBox(height: 34),
-            GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: 4,
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-                mainAxisExtent: 128,
+              const SizedBox(height: 8),
+              const Text(
+                'Here is your patient overview for today.',
+                style: TextStyle(color: doctorMuted, fontSize: 15),
               ),
-              itemBuilder: (context, index) {
-                final cards = [
-                  _KpiCard(
-                    title: 'TOTAL\nPATIENTS',
-                    value: summary.isLoading ? '...' : totalPatients,
-                    subtitle: 'Assigned patients',
-                    icon: Icons.groups_rounded,
-                  ),
-                  _KpiCard(
-                    title: 'ACTIVE\nTREATMENTS',
-                    value: summary.isLoading ? '...' : activeTherapies,
-                    subtitle: 'Ongoing therapies',
-                    icon: Icons.medical_services_rounded,
-                    dark: true,
-                  ),
-                  _KpiCard(
-                    title: 'AT RISK OF\nDEFAULT',
-                    value: summary.isLoading ? '...' : highPriority,
-                    subtitle: 'Immediate action',
-                    icon: Icons.warning_rounded,
-                    danger: true,
-                  ),
-                  _KpiCard(
-                    title: 'RECOVERED',
-                    value: summary.isLoading ? '...' : recovered.toString(),
-                    subtitle: 'Completed therapy',
-                    icon: Icons.check_circle_rounded,
-                  ),
-                ];
-                return cards[index];
-              },
-            ),
-            const SizedBox(height: 32),
-            DoctorCard(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      const Expanded(
-                        child: Text(
-                          'Priority Follow-ups',
-                          style: TextStyle(
-                            color: doctorText,
-                            fontSize: 22,
-                            fontWeight: FontWeight.w800,
+              const SizedBox(height: 34),
+              GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: 4,
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  crossAxisSpacing: 12,
+                  mainAxisSpacing: 12,
+                  mainAxisExtent: 128,
+                ),
+                itemBuilder: (context, index) {
+                  final cards = [
+                    _KpiCard(
+                      title: 'TOTAL\nPATIENTS',
+                      value: summary.isLoading ? '...' : totalPatients,
+                      subtitle: 'Assigned patients',
+                      icon: Icons.groups_rounded,
+                    ),
+                    _KpiCard(
+                      title: 'ACTIVE\nTREATMENTS',
+                      value: summary.isLoading ? '...' : activeTherapies,
+                      subtitle: 'Ongoing therapies',
+                      icon: Icons.medical_services_rounded,
+                      dark: true,
+                    ),
+                    _KpiCard(
+                      title: 'AT RISK OF\nDEFAULT',
+                      value: summary.isLoading ? '...' : highPriority,
+                      subtitle: 'Immediate action',
+                      icon: Icons.warning_rounded,
+                      danger: true,
+                    ),
+                    _KpiCard(
+                      title: 'RECOVERED',
+                      value: summary.isLoading ? '...' : recovered.toString(),
+                      subtitle: 'Completed therapy',
+                      icon: Icons.check_circle_rounded,
+                    ),
+                  ];
+                  return cards[index];
+                },
+              ),
+              const SizedBox(height: 32),
+              DoctorCard(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Expanded(
+                          child: Text(
+                            'Priority Follow-ups',
+                            style: TextStyle(
+                              color: doctorText,
+                              fontSize: 22,
+                              fontWeight: FontWeight.w800,
+                            ),
                           ),
                         ),
-                      ),
-                      IconButton(
-                        onPressed: () {},
-                        icon: const Icon(Icons.more_horiz_rounded),
-                        color: doctorTeal,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 18),
-                  ..._followUps(data, isLoading: summary.isLoading),
-                  const SizedBox(height: 20),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 40,
-                    child: OutlinedButton(
-                      onPressed: () => context.go(AppRoutes.patientManagement),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: doctorTeal,
-                        side: const BorderSide(color: Color(0xFFB7C3C3)),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(7),
+                        IconButton(
+                          onPressed: () {},
+                          icon: const Icon(Icons.more_horiz_rounded),
+                          color: doctorTeal,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+                    ..._followUps(data, isLoading: summary.isLoading),
+                    const SizedBox(height: 20),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 40,
+                      child: OutlinedButton(
+                        onPressed: () =>
+                            context.go(AppRoutes.patientManagement),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: doctorTeal,
+                          side: const BorderSide(color: Color(0xFFB7C3C3)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(7),
+                          ),
+                        ),
+                        child: const Text(
+                          'View All Patients',
+                          style: TextStyle(fontWeight: FontWeight.w700),
                         ),
                       ),
-                      child: const Text(
-                        'View All Patients',
-                        style: TextStyle(fontWeight: FontWeight.w700),
-                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -149,6 +155,12 @@ class DoctorDashboardPage extends ConsumerWidget {
     if (hour < 12) return 'Good morning';
     if (hour < 17) return 'Good afternoon';
     return 'Good evening';
+  }
+
+  Future<void> _refresh(WidgetRef ref) async {
+    ref.invalidate(currentDoctorDashboardSummaryProvider);
+    ref.invalidate(currentDoctorMapSummaryProvider);
+    await ref.read(currentDoctorDashboardSummaryProvider.future);
   }
 
   static String _doctorName(String value) {

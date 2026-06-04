@@ -55,7 +55,7 @@ class TherapyService {
         .from('therapies')
         .select('*, tb_cases(diagnosis_date), therapy_phases(phase_name)')
         .eq('patient_id', resolvedPatientId)
-        .inFilter('status', ['ongoing', 'on_treatment'])
+        .inFilter('status', ['ongoing', 'on_treatment', 'at_risk'])
         .order('created_at', ascending: false)
         .limit(1)
         .maybeSingle();
@@ -185,12 +185,6 @@ class TherapyService {
         .eq('therapy_id', treatmentId)
         .select('*, tb_cases(diagnosis_date), therapy_phases(phase_name)')
         .single();
-
-    await context.client.from('therapy_progress').upsert({
-      'therapy_id': treatmentId,
-      'days_on_therapy': 1,
-      'last_calculated': DateTime.now().toIso8601String(),
-    }, onConflict: 'therapy_id');
 
     await context.client
         .from('therapy_phases')

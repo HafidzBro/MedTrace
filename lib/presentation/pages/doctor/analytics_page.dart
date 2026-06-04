@@ -5,180 +5,220 @@ import 'package:medtrace/presentation/pages/doctor/doctor_mockup_widgets.dart';
 import 'package:medtrace/presentation/providers/app_providers.dart';
 import 'package:medtrace/presentation/router/app_routes.dart';
 import 'package:medtrace/services/supabase/dashboard_service.dart';
+import 'package:url_launcher/url_launcher.dart';
 
-class AnalyticsPage extends ConsumerWidget {
+enum _DateFilter { all, today, yesterday, lastWeek, lastMonth }
+
+enum _TherapyFilter { all, low, medium, high }
+
+class AnalyticsPage extends ConsumerStatefulWidget {
   const AnalyticsPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final summary = ref.watch(currentDoctorDashboardSummaryProvider);
+  ConsumerState<AnalyticsPage> createState() => _AnalyticsPageState();
+}
+
+class _AnalyticsPageState extends ConsumerState<AnalyticsPage> {
+  _DateFilter _dateFilter = _DateFilter.today;
+  _TherapyFilter _therapyFilter = _TherapyFilter.all;
+
+  @override
+  Widget build(BuildContext context) {
+    final summaryState = ref.watch(currentDoctorDashboardSummaryProvider);
+    final summary = summaryState.valueOrNull;
+    final allItems = summary?.directoryItems ?? const [];
+    final alertSeverities = _alertSeverityByPatient(summary);
+    final visibleItems = _filterItems(allItems, alertSeverities);
+    final atRiskItems = visibleItems.where(_isAtRisk).toList()
+      ..sort((a, b) => b.missedCount.compareTo(a.missedCount));
+    final filteredLogs = visibleItems.expand((item) => item.logs).where((log) {
+      final range = _dateRange(_dateFilter);
+      if (range == null) return true;
+      return _isWithin(log.scheduledAt, range);
+    }).toList();
+    final missedLogs = filteredLogs.where((log) => log.isMissed).toList();
+    final missedYesterday = allItems
+        .expand((item) => item.logs)
+        .where(
+            (log) => log.isMissed && _isWithin(log.scheduledAt, _yesterday()))
+        .length;
+    final adherence = _averageAdherence(visibleItems);
 
     return DoctorMockScaffold(
       currentIndex: 3,
       appBar: const DoctorTopBar(title: 'MedTrace', leadingIcon: Icons.person),
-      child: summary.when(
-        loading: () => const Center(
-          child: CircularProgressIndicator(color: doctorTeal),
+      child: RefreshIndicator(
+        color: doctorTeal,
+        onRefresh: () async {
+          ref.invalidate(currentDoctorDashboardSummaryProvider);
+          await ref.read(currentDoctorDashboardSummaryProvider.future);
+        },
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(36, 26, 36, 104),
+          children: [
+            const Text(
+              'Adherence Monitoring',
+              style: TextStyle(
+                color: doctorText,
+                fontSize: 30,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              summaryState.isLoading
+                  ? 'Loading assigned patient data'
+                  : '${visibleItems.length} assigned patients in view',
+              style: const TextStyle(color: doctorMuted, fontSize: 15),
+            ),
+            const SizedBox(height: 18),
+            Row(
+              children: [
+                Expanded(
+                  child: _FilterPill<_DateFilter>(
+                    label: _dateFilterLabel(_dateFilter),
+                    value: _dateFilter,
+                    values: _DateFilter.values,
+                    labelFor: _dateFilterLabel,
+                    onChanged: (value) => setState(() => _dateFilter = value),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _FilterPill<_TherapyFilter>(
+                    label: _therapyFilterLabel(_therapyFilter),
+                    value: _therapyFilter,
+                    values: _TherapyFilter.values,
+                    labelFor: _therapyFilterLabel,
+                    onChanged: (value) =>
+                        setState(() => _therapyFilter = value),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 30),
+            if (summaryState.hasError && summary == null)
+              _StateCard(
+                title: 'Unable to load monitoring',
+                message: summaryState.error.toString(),
+              )
+            else ...[
+              _OverallAdherenceCard(adherence: adherence),
+              const SizedBox(height: 18),
+              _MissedDosesCard(
+                count: missedLogs.length,
+                yesterdayCount: missedYesterday,
+                label: _dateFilterLabel(_dateFilter),
+              ),
+              const SizedBox(height: 18),
+              _ActionRequiredCard(count: atRiskItems.length),
+              const SizedBox(height: 32),
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'At-Risk Patients',
+                      style: TextStyle(
+                        color: doctorText,
+                        fontSize: 21,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () => context.go(AppRoutes.alerts),
+                    child: const Text('View All'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              if (atRiskItems.isEmpty)
+                const _StateCard(
+                  title: 'No at-risk patients',
+                  message:
+                      'Patients with missed doses or low adherence will appear here.',
+                )
+              else
+                ...atRiskItems.take(5).map(
+                      (item) => Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: _AtRiskTile(item: item),
+                      ),
+                    ),
+              const SizedBox(height: 8),
+              _QuickFiltersCard(
+                activeFilter: _therapyFilter,
+                highCount: _severityCount(allItems, alertSeverities, 'high'),
+                mediumCount:
+                    _severityCount(allItems, alertSeverities, 'medium'),
+                lowCount: _severityCount(allItems, alertSeverities, 'low'),
+                onFilter: (filter) => setState(() => _therapyFilter = filter),
+              ),
+              const SizedBox(height: 26),
+              _RegionalCard(
+                missedCount: missedLogs.length,
+                onViewMap: () => context.go(AppRoutes.doctorMap),
+              ),
+            ],
+          ],
         ),
-        error: (error, _) => Center(
-          child: Padding(
-            padding: const EdgeInsets.all(32),
-            child: Text(error.toString(),
-                style: const TextStyle(color: doctorMuted),
-                textAlign: TextAlign.center),
-          ),
-        ),
-        data: (data) => _AnalyticsContent(data: data),
       ),
     );
   }
-}
 
-class _AnalyticsContent extends StatefulWidget {
-  final DoctorDashboardSummary data;
-  const _AnalyticsContent({required this.data});
+  List<DoctorPatientDirectoryItem> _filterItems(
+    List<DoctorPatientDirectoryItem> items,
+    Map<String, String> alertSeverities,
+  ) {
+    final byStatus = items.where((item) {
+      return switch (_therapyFilter) {
+        _TherapyFilter.low =>
+          _monitoringSeverity(item, alertSeverities) == 'low',
+        _TherapyFilter.medium =>
+          _monitoringSeverity(item, alertSeverities) == 'medium',
+        _TherapyFilter.high =>
+          _monitoringSeverity(item, alertSeverities) == 'high',
+        _TherapyFilter.all => true,
+      };
+    });
 
-  @override
-  State<_AnalyticsContent> createState() => _AnalyticsContentState();
-}
-
-class _AnalyticsContentState extends State<_AnalyticsContent> {
-  String _period = 'Today';
-  String _status = 'All Statuses';
-
-  @override
-  Widget build(BuildContext context) {
-    final data = widget.data;
-
-    final patientsWithTherapy =
-        data.directoryItems.where((d) => d.therapy != null).toList();
-
-    final overallAdherence = patientsWithTherapy.isEmpty
-        ? 0.0
-        : patientsWithTherapy
-                .map((d) => d.therapy!.adherencePercentage)
-                .fold(0.0, (a, b) => a + b) /
-            patientsWithTherapy.length;
-
-    final now = DateTime.now();
-    final missedToday = data.directoryItems.where((d) {
-      final log = d.lastLog;
-      if (log == null) return false;
-      return log.isMissed &&
-          log.scheduledDate.year == now.year &&
-          log.scheduledDate.month == now.month &&
-          log.scheduledDate.day == now.day;
-    }).length;
-
-    final actionRequired = data.alerts
-        .where((a) =>
-            !a.actionTaken &&
-            (a.severity == 'high' || a.severity == 'critical'))
-        .length;
-
-    final atRisk = data.directoryItems
-        .where((d) => d.missedCount >= 2)
-        .toList()
-      ..sort((a, b) => b.missedCount.compareTo(a.missedCount));
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(36, 26, 36, 104),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Adherence Monitoring',
-            style: TextStyle(
-                color: doctorText, fontSize: 30, fontWeight: FontWeight.w800),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            '${data.totalPatients} patient${data.totalPatients == 1 ? '' : 's'} · ${data.activeTherapies} active therapies',
-            style: const TextStyle(color: doctorMuted, fontSize: 15),
-          ),
-          const SizedBox(height: 18),
-          Row(
-            children: [
-              Expanded(child: _DropdownPill(label: _period, options: const ['Today', 'This Week', 'This Month'], onSelect: (v) => setState(() => _period = v))),
-              const SizedBox(width: 12),
-              Expanded(child: _DropdownPill(label: _status, options: const ['All Statuses', 'Active', 'Completed'], onSelect: (v) => setState(() => _status = v))),
-            ],
-          ),
-          const SizedBox(height: 28),
-          _OverallAdherenceCard(adherence: overallAdherence),
-          const SizedBox(height: 18),
-          _MissedDosesCard(count: missedToday),
-          const SizedBox(height: 18),
-          _ActionRequiredCard(count: actionRequired),
-          const SizedBox(height: 32),
-          Row(
-            children: [
-              const Expanded(
-                child: Text(
-                  'At-Risk Patients (2+ Missed)',
-                  style: TextStyle(
-                      color: doctorText,
-                      fontSize: 21,
-                      fontWeight: FontWeight.w800),
-                ),
-              ),
-              GestureDetector(
-                onTap: () => context.go(AppRoutes.patientManagement),
-                child: const Text('View All',
-                    style: TextStyle(
-                        color: doctorTeal, fontWeight: FontWeight.w700)),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          if (atRisk.isEmpty)
-            _EmptyAtRisk()
-          else
-            ...atRisk.take(5).map((item) {
-              final name = item.profile.fullName?.trim().isNotEmpty == true
-                  ? item.profile.fullName!
-                  : (item.profile.email ?? 'Patient');
-              final patientId = item.patient.patientId;
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 14),
-                child: _AtRiskTile(
-                  patientId: patientId,
-                  patientName: name,
-                  missedCount: item.missedCount,
-                  high: item.missedCount >= 3,
-                  adherence: item.therapy?.adherencePercentage,
-                ),
-              );
-            }),
-          const SizedBox(height: 16),
-          _SummaryStatsCard(
-            totalPatients: data.totalPatients,
-            activeTherapies: data.activeTherapies,
-            unresolved: data.alerts.where((a) => !a.actionTaken).length,
-          ),
-        ],
-      ),
-    );
+    final range = _dateRange(_dateFilter);
+    if (range == null) return byStatus.toList();
+    return byStatus.where((item) {
+      if (item.logs.isEmpty) return true;
+      return item.logs.any((log) => _isWithin(log.scheduledAt, range));
+    }).toList();
   }
 }
 
-class _DropdownPill extends StatelessWidget {
+class _FilterPill<T> extends StatelessWidget {
   final String label;
-  final List<String> options;
-  final ValueChanged<String> onSelect;
+  final T value;
+  final List<T> values;
+  final String Function(T) labelFor;
+  final ValueChanged<T> onChanged;
 
-  const _DropdownPill({
+  const _FilterPill({
     required this.label,
-    required this.options,
-    required this.onSelect,
+    required this.value,
+    required this.values,
+    required this.labelFor,
+    required this.onChanged,
   });
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () => _showPicker(context),
+    return PopupMenuButton<T>(
+      initialValue: value,
+      onSelected: onChanged,
+      itemBuilder: (context) => values
+          .map((item) => PopupMenuItem<T>(
+                value: item,
+                child: Text(labelFor(item)),
+              ))
+          .toList(),
       child: Container(
-        height: 38,
+        height: 46,
         padding: const EdgeInsets.symmetric(horizontal: 14),
         decoration: BoxDecoration(
           color: Colors.white,
@@ -188,36 +228,20 @@ class _DropdownPill extends StatelessWidget {
         child: Row(
           children: [
             Expanded(
-                child: Text(label,
-                    style: const TextStyle(
-                        color: doctorText,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500),
-                    overflow: TextOverflow.ellipsis)),
-            const Icon(Icons.keyboard_arrow_down_rounded,
-                color: Color(0xFF6B7275)),
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: doctorText,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+            const Icon(Icons.keyboard_arrow_down_rounded, color: doctorMuted),
           ],
         ),
-      ),
-    );
-  }
-
-  void _showPicker(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      builder: (_) => ListView(
-        shrinkWrap: true,
-        children: options
-            .map((o) => ListTile(
-                  title: Text(o),
-                  selected: o == label,
-                  selectedColor: doctorTeal,
-                  onTap: () {
-                    Navigator.pop(context);
-                    onSelect(o);
-                  },
-                ))
-            .toList(),
       ),
     );
   }
@@ -225,62 +249,70 @@ class _DropdownPill extends StatelessWidget {
 
 class _OverallAdherenceCard extends StatelessWidget {
   final double adherence;
+
   const _OverallAdherenceCard({required this.adherence});
 
   @override
   Widget build(BuildContext context) {
-    final pct = adherence.clamp(0, 100).toDouble();
-    final color = pct >= 85 ? doctorTeal2 : pct >= 60 ? const Color(0xFFF59E0B) : doctorDanger;
-
     return DoctorCard(
-      child: Row(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Overall Adherence',
-                    style: TextStyle(
-                        color: doctorText,
-                        fontSize: 20,
-                        fontWeight: FontWeight.w800)),
-                const SizedBox(height: 18),
-                SizedBox(
-                  width: 104,
-                  height: 104,
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      CircularProgressIndicator(
-                        value: pct / 100,
-                        strokeWidth: 12,
-                        backgroundColor: doctorNeutral,
-                        valueColor: AlwaysStoppedAnimation(color),
-                      ),
-                      Text(
-                        '${pct.toStringAsFixed(0)}%',
-                        style: TextStyle(
-                            color: color,
-                            fontSize: 20,
-                            fontWeight: FontWeight.w800),
-                      ),
-                    ],
+          const Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Overall Adherence',
+                  style: TextStyle(
+                    color: doctorText,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
-              ],
-            ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Icon(Icons.bar_chart_rounded, color: Color(0xFF6B7275)),
-              const SizedBox(height: 56),
-              _Legend(color: doctorTeal, text: 'Target >85%'),
-              const SizedBox(height: 8),
-              _Legend(
-                  color: pct >= 85 ? doctorTeal2 : doctorDanger,
-                  text: pct >= 85 ? 'On Target' : 'Below Target'),
+              ),
+              Icon(Icons.bar_chart_rounded, color: doctorMuted),
             ],
+          ),
+          const SizedBox(height: 22),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxWidth < 300;
+              final ring = _AdherenceRing(
+                value: adherence,
+                size: compact ? 118 : 138,
+              );
+              const legend = Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _Legend(color: doctorTeal, text: 'Target >85%'),
+                  SizedBox(height: 10),
+                  _Legend(color: doctorNeutral, text: 'Below Target'),
+                ],
+              );
+
+              if (compact) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    ring,
+                    const SizedBox(height: 16),
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: legend,
+                    ),
+                  ],
+                );
+              }
+
+              return Row(
+                children: [
+                  ring,
+                  const SizedBox(width: 22),
+                  const Expanded(child: legend),
+                ],
+              );
+            },
           ),
         ],
       ),
@@ -288,22 +320,105 @@ class _OverallAdherenceCard extends StatelessWidget {
   }
 }
 
+class _AdherenceRing extends StatelessWidget {
+  final double value;
+  final double size;
+
+  const _AdherenceRing({
+    required this.value,
+    this.size = 138,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final textSize = size < 130 ? 25.0 : 30.0;
+    final innerSize = size * 0.78;
+    return Container(
+      width: size,
+      height: size,
+      alignment: Alignment.center,
+      child: CustomPaint(
+        size: Size.square(size),
+        painter: _AdherenceRingPainter(value),
+        child: SizedBox.square(
+          dimension: innerSize,
+          child: Center(
+            child: Text(
+              '${value.toStringAsFixed(0)}%',
+              style: TextStyle(
+                color: doctorTeal,
+                fontSize: textSize,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AdherenceRingPainter extends CustomPainter {
+  final double value;
+
+  const _AdherenceRingPainter(this.value);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = (size.shortestSide - 18) / 2;
+    final background = Paint()
+      ..color = doctorNeutral
+      ..strokeWidth = 16
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+    final foreground = Paint()
+      ..color = doctorTeal2
+      ..strokeWidth = 16
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+
+    canvas.drawCircle(center, radius, background);
+    final sweep = 360 * (value / 100).clamp(0.0, 1.0);
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: radius),
+      -90 * 3.141592653589793 / 180,
+      sweep * 3.141592653589793 / 180,
+      false,
+      foreground,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _AdherenceRingPainter oldDelegate) {
+    return oldDelegate.value != value;
+  }
+}
+
 class _Legend extends StatelessWidget {
   final Color color;
   final String text;
+
   const _Legend({required this.color, required this.text});
 
   @override
   Widget build(BuildContext context) {
     return Row(
-      mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-            width: 8,
-            height: 8,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
-        const SizedBox(width: 6),
-        Text(text, style: const TextStyle(color: doctorMuted, fontSize: 12)),
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            text,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: doctorMuted, fontSize: 12),
+          ),
+        ),
       ],
     );
   }
@@ -311,7 +426,14 @@ class _Legend extends StatelessWidget {
 
 class _MissedDosesCard extends StatelessWidget {
   final int count;
-  const _MissedDosesCard({required this.count});
+  final int yesterdayCount;
+  final String label;
+
+  const _MissedDosesCard({
+    required this.count,
+    required this.yesterdayCount,
+    required this.label,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -319,32 +441,31 @@ class _MissedDosesCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
-            children: [
-              Expanded(
-                  child: Text('Missed Doses Today',
-                      style: TextStyle(
-                          color: doctorText,
-                          fontSize: 20,
-                          fontWeight: FontWeight.w800))),
-              Icon(Icons.add_box_outlined, color: Color(0xFF6B7275)),
-            ],
+          Text(
+            'Missed Doses - $label',
+            style: const TextStyle(
+              color: doctorText,
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+            ),
           ),
           const SizedBox(height: 24),
           Text(
             '$count',
             style: const TextStyle(
-                color: doctorText,
-                fontSize: 48,
-                fontWeight: FontWeight.w800,
-                height: 1),
+              color: doctorText,
+              fontSize: 48,
+              fontWeight: FontWeight.w800,
+              height: 1,
+            ),
           ),
           const SizedBox(height: 8),
           Text(
-            count == 0 ? 'No missed doses today' : 'patient${count == 1 ? '' : 's'} missed today',
+            '$yesterdayCount missed yesterday',
             style: TextStyle(
-                color: count > 0 ? doctorDanger : const Color(0xFF2E7D32),
-                fontSize: 14),
+              color: yesterdayCount > 0 ? doctorDanger : doctorMuted,
+              fontSize: 14,
+            ),
           ),
         ],
       ),
@@ -354,6 +475,7 @@ class _MissedDosesCard extends StatelessWidget {
 
 class _ActionRequiredCard extends StatelessWidget {
   final int count;
+
   const _ActionRequiredCard({required this.count});
 
   @override
@@ -366,57 +488,55 @@ class _ActionRequiredCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(10),
         boxShadow: [
           BoxShadow(
-              color: doctorTeal.withValues(alpha: 0.16),
-              blurRadius: 14,
-              offset: const Offset(0, 7)),
+            color: doctorTeal.withValues(alpha: 0.16),
+            blurRadius: 14,
+            offset: const Offset(0, 7),
+          ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
-            children: [
-              Expanded(
-                  child: Text('Action Required',
-                      style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 20,
-                          fontWeight: FontWeight.w800))),
-              Icon(Icons.priority_high_rounded, color: Colors.white),
-            ],
+          const Text(
+            'Action Required',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+            ),
           ),
           const SizedBox(height: 18),
           Text(
             '$count',
             style: const TextStyle(
-                color: Colors.white,
-                fontSize: 48,
-                fontWeight: FontWeight.w800,
-                height: 1),
+              color: Colors.white,
+              fontSize: 48,
+              fontWeight: FontWeight.w800,
+              height: 1,
+            ),
           ),
           const SizedBox(height: 12),
-          Text(
-            count == 0
-                ? 'No unresolved high-priority alerts'
-                : 'patient${count == 1 ? '' : 's'} require immediate follow-up',
-            style: const TextStyle(color: Color(0xFFA9DAD8), fontSize: 15),
+          const Text(
+            'Patients require immediate follow-up',
+            style: TextStyle(color: Color(0xFFA9DAD8), fontSize: 15),
           ),
-          if (count > 0) ...[
-            const SizedBox(height: 18),
-            SizedBox(
-              width: double.infinity,
-              height: 38,
-              child: ElevatedButton(
-                onPressed: () => context.go(AppRoutes.alerts),
-                style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    foregroundColor: doctorTeal,
-                    elevation: 0),
-                child: const Text('View Priority Alerts',
-                    style: TextStyle(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 18),
+          SizedBox(
+            width: double.infinity,
+            height: 40,
+            child: ElevatedButton(
+              onPressed: () => context.go(AppRoutes.alerts),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: doctorTeal,
+                elevation: 0,
+              ),
+              child: const Text(
+                'View Priority Cases',
+                style: TextStyle(fontWeight: FontWeight.w700),
               ),
             ),
-          ],
+          ),
         ],
       ),
     );
@@ -424,131 +544,81 @@ class _ActionRequiredCard extends StatelessWidget {
 }
 
 class _AtRiskTile extends StatelessWidget {
-  final String patientId;
-  final String patientName;
-  final int missedCount;
-  final bool high;
-  final double? adherence;
+  final DoctorPatientDirectoryItem item;
 
-  const _AtRiskTile({
-    required this.patientId,
-    required this.patientName,
-    required this.missedCount,
-    this.high = false,
-    this.adherence,
-  });
+  const _AtRiskTile({required this.item});
 
   @override
   Widget build(BuildContext context) {
-    final initials = _initials(patientName);
-    return DoctorCard(
-      padding: const EdgeInsets.all(16),
-      borderColor: high ? const Color(0xFFFFA7A7) : doctorBorder,
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 24,
-            backgroundColor: high ? doctorDangerSoft : doctorNeutral,
-            child: Text(initials,
-                style: TextStyle(
-                    color: high ? doctorDanger : const Color(0xFF6B7275),
-                    fontWeight: FontWeight.w700,
-                    fontSize: 14)),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  patientName,
-                  style: const TextStyle(
-                      color: doctorText,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w800),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    DoctorChip(
-                      label: '$missedCount Missed',
-                      color: high ? doctorDangerSoft : doctorNeutral,
-                      textColor:
-                          high ? doctorDanger : const Color(0xFF50585C),
-                    ),
-                    if (adherence != null) ...[
-                      const SizedBox(width: 8),
-                      DoctorChip(
-                        label:
-                            '${adherence!.toStringAsFixed(0)}% adherence',
-                        color: adherence! >= 60
-                            ? const Color(0xFFE8F5E9)
-                            : doctorDangerSoft,
-                        textColor: adherence! >= 60
-                            ? const Color(0xFF2E7D32)
-                            : doctorDanger,
-                      ),
-                    ],
-                  ],
-                ),
-              ],
+    final missed = item.missedCount;
+    final high = missed >= 2 || (item.therapy?.isFailed ?? false);
+    return InkWell(
+      borderRadius: BorderRadius.circular(8),
+      onTap: () => context.go(
+        AppRoutes.patientDetail,
+        extra: {
+          'patientId': item.patient.patientId,
+          'patientName': _patientName(item),
+        },
+      ),
+      child: DoctorCard(
+        padding: const EdgeInsets.all(16),
+        borderColor: high ? const Color(0xFFFFA7A7) : doctorBorder,
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: 24,
+              backgroundColor: high ? doctorDangerSoft : doctorNeutral,
+              child: Icon(
+                high ? Icons.warning_amber_rounded : Icons.person_outline,
+                color: high ? doctorDanger : doctorMuted,
+              ),
             ),
-          ),
-          const SizedBox(width: 8),
-          const Icon(Icons.chevron_right_rounded,
-              color: doctorTeal, size: 24),
-        ],
-      ),
-    );
-  }
-
-  static String _initials(String name) {
-    final parts = name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
-    if (parts.isEmpty) return 'PT';
-    final first = parts.first[0];
-    final second = parts.length > 1 ? parts.last[0] : '';
-    return '$first$second'.toUpperCase();
-  }
-}
-
-class _EmptyAtRisk extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF2F4F4),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: doctorBorder),
-      ),
-      child: const Column(
-        children: [
-          Icon(Icons.check_circle_outline_rounded,
-              color: doctorTeal, size: 36),
-          SizedBox(height: 10),
-          Text(
-            'No at-risk patients at this time.',
-            style: TextStyle(color: doctorMuted, fontSize: 14),
-            textAlign: TextAlign.center,
-          ),
-        ],
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _patientName(item),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: doctorText,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  DoctorChip(
+                    label: '$missed missed dose${missed == 1 ? '' : 's'}',
+                    color: high ? doctorDangerSoft : doctorNeutral,
+                    textColor: high ? doctorDanger : doctorMuted,
+                  ),
+                ],
+              ),
+            ),
+            _WhatsAppButton(item: item),
+          ],
+        ),
       ),
     );
   }
 }
 
-class _SummaryStatsCard extends StatelessWidget {
-  final int totalPatients;
-  final int activeTherapies;
-  final int unresolved;
+class _QuickFiltersCard extends StatelessWidget {
+  final _TherapyFilter activeFilter;
+  final int highCount;
+  final int mediumCount;
+  final int lowCount;
+  final ValueChanged<_TherapyFilter> onFilter;
 
-  const _SummaryStatsCard({
-    required this.totalPatients,
-    required this.activeTherapies,
-    required this.unresolved,
+  const _QuickFiltersCard({
+    required this.activeFilter,
+    required this.highCount,
+    required this.mediumCount,
+    required this.lowCount,
+    required this.onFilter,
   });
 
   @override
@@ -558,77 +628,332 @@ class _SummaryStatsCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Summary',
-              style: TextStyle(
-                  color: doctorText,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800)),
+          const Text(
+            'Quick Filters',
+            style: TextStyle(
+              color: doctorText,
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 26),
+          _FilterRow(
+            label: 'Immediate Action',
+            count: '$highCount',
+            checked: activeFilter == _TherapyFilter.high,
+            onTap: () => onFilter(_TherapyFilter.high),
+          ),
           const SizedBox(height: 20),
-          _StatRow(
-              label: 'Total Patients',
-              value: '$totalPatients',
-              checked: true),
-          const SizedBox(height: 16),
-          _StatRow(
-              label: 'Active Therapies',
-              value: '$activeTherapies',
-              checked: activeTherapies > 0),
-          const SizedBox(height: 16),
-          _StatRow(
-              label: 'Unresolved Alerts',
-              value: '$unresolved',
-              checked: unresolved == 0,
-              danger: unresolved > 0),
+          _FilterRow(
+            label: 'Missed 2-3 Times',
+            count: '$mediumCount',
+            checked: activeFilter == _TherapyFilter.medium,
+            onTap: () => onFilter(_TherapyFilter.medium),
+          ),
+          const SizedBox(height: 20),
+          _FilterRow(
+            label: 'Missed Once',
+            count: '$lowCount',
+            checked: activeFilter == _TherapyFilter.low,
+            onTap: () => onFilter(_TherapyFilter.low),
+          ),
         ],
       ),
     );
   }
 }
 
-class _StatRow extends StatelessWidget {
+class _FilterRow extends StatelessWidget {
   final String label;
-  final String value;
+  final String count;
   final bool checked;
-  final bool danger;
+  final VoidCallback onTap;
 
-  const _StatRow({
+  const _FilterRow({
     required this.label,
-    required this.value,
+    required this.count,
+    required this.onTap,
     this.checked = false,
-    this.danger = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(
-          checked && !danger
-              ? Icons.check_box_rounded
-              : Icons.check_box_outline_blank_rounded,
-          color: danger
-              ? doctorDanger
-              : checked
-                  ? doctorTeal
-                  : const Color(0xFFB6BFC1),
-        ),
-        const SizedBox(width: 14),
-        Expanded(
-            child: Text(label,
-                style: const TextStyle(color: doctorText, fontSize: 14))),
-        DoctorChip(
-            label: value,
-            color: danger
-                ? doctorDangerSoft
-                : checked
-                    ? doctorNeutral
-                    : doctorNeutral,
-            textColor: danger
-                ? doctorDanger
-                : checked
-                    ? doctorMuted
-                    : doctorMuted),
-      ],
+    return InkWell(
+      borderRadius: BorderRadius.circular(6),
+      onTap: onTap,
+      child: Row(
+        children: [
+          Icon(
+            checked
+                ? Icons.check_box_rounded
+                : Icons.check_box_outline_blank_rounded,
+            color: checked ? doctorTeal : const Color(0xFFB6BFC1),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(color: doctorText, fontSize: 14),
+            ),
+          ),
+          DoctorChip(
+            label: count,
+            color: checked ? doctorDangerSoft : doctorNeutral,
+            textColor: checked ? doctorDanger : doctorMuted,
+          ),
+        ],
+      ),
     );
   }
+}
+
+class _WhatsAppButton extends StatelessWidget {
+  final DoctorPatientDirectoryItem item;
+
+  const _WhatsAppButton({required this.item});
+
+  @override
+  Widget build(BuildContext context) {
+    final phone = _whatsAppPhone(item.profile.phoneNumber);
+    return IconButton(
+      tooltip: 'Contact via WhatsApp',
+      onPressed: phone == null ? null : () => _openWhatsApp(context, phone),
+      icon: Icon(
+        Icons.chat_outlined,
+        color: phone == null ? doctorMuted : const Color(0xFF008A4B),
+        size: 30,
+      ),
+    );
+  }
+}
+
+class _RegionalCard extends StatelessWidget {
+  final int missedCount;
+  final VoidCallback onViewMap;
+
+  const _RegionalCard({
+    required this.missedCount,
+    required this.onViewMap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return DoctorCard(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Regional View',
+            style: TextStyle(
+              color: doctorText,
+              fontSize: 21,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            missedCount > 0
+                ? '$missedCount missed dose records are visible in the current monitoring filter.'
+                : 'No missed dose concentration is visible in the current monitoring filter.',
+            style:
+                const TextStyle(color: doctorMuted, fontSize: 15, height: 1.35),
+          ),
+          const SizedBox(height: 18),
+          TextButton.icon(
+            onPressed: onViewMap,
+            icon: const Icon(Icons.map_outlined),
+            label: const Text('View Map'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StateCard extends StatelessWidget {
+  final String title;
+  final String message;
+
+  const _StateCard({
+    required this.title,
+    required this.message,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return DoctorCard(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        children: [
+          const Icon(Icons.monitor_heart_outlined, color: doctorTeal, size: 34),
+          const SizedBox(height: 12),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: doctorText,
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style:
+                const TextStyle(color: doctorMuted, fontSize: 14, height: 1.35),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+bool _isAtRisk(DoctorPatientDirectoryItem item) {
+  final therapy = item.therapy;
+  return item.missedCount > 0 ||
+      (therapy?.isDefaulted ?? false) ||
+      (therapy?.isAtRisk ?? false);
+}
+
+int _severityCount(
+  List<DoctorPatientDirectoryItem> items,
+  Map<String, String> alertSeverities,
+  String severity,
+) {
+  return items.where((item) {
+    return _monitoringSeverity(item, alertSeverities) == severity;
+  }).length;
+}
+
+double _averageAdherence(List<DoctorPatientDirectoryItem> items) {
+  final therapies = items
+      .map((item) => item.therapy)
+      .where((therapy) => therapy != null)
+      .toList();
+  if (therapies.isEmpty) return 0;
+  final total = therapies.fold<double>(
+    0,
+    (sum, therapy) => sum + therapy!.adherencePercentage,
+  );
+  return total / therapies.length;
+}
+
+String _patientName(DoctorPatientDirectoryItem item) {
+  final fullName = item.profile.fullName.trim();
+  if (fullName.isNotEmpty) return fullName;
+  final email = item.profile.email.trim();
+  if (email.isNotEmpty) return email;
+  return 'Patient';
+}
+
+String _dateFilterLabel(_DateFilter filter) {
+  return switch (filter) {
+    _DateFilter.all => 'All',
+    _DateFilter.today => 'Today',
+    _DateFilter.yesterday => 'Yesterday',
+    _DateFilter.lastWeek => 'Last Week',
+    _DateFilter.lastMonth => 'Last Month',
+  };
+}
+
+String _therapyFilterLabel(_TherapyFilter filter) {
+  return switch (filter) {
+    _TherapyFilter.all => 'All Statuses',
+    _TherapyFilter.low => 'Low',
+    _TherapyFilter.medium => 'Medium',
+    _TherapyFilter.high => 'High',
+  };
+}
+
+Map<String, String> _alertSeverityByPatient(DoctorDashboardSummary? summary) {
+  if (summary == null) return const {};
+  final severities = <String, String>{};
+  for (final alert in summary.alerts) {
+    final currentRank = _severityRank(severities[alert.patientId]);
+    final nextRank = _severityRank(alert.severity);
+    if (nextRank > currentRank) {
+      severities[alert.patientId] = alert.severity;
+    }
+  }
+  return severities;
+}
+
+String _monitoringSeverity(
+  DoctorPatientDirectoryItem item,
+  Map<String, String> alertSeverities,
+) {
+  final fromAlert = alertSeverities[item.patient.patientId];
+  if (fromAlert == 'critical') return 'high';
+  if (fromAlert == 'low' || fromAlert == 'medium' || fromAlert == 'high') {
+    return fromAlert ?? 'none';
+  }
+  final missed = item.missedCount;
+  if (missed > 3) return 'high';
+  if (missed >= 2) return 'medium';
+  if (missed == 1) return 'low';
+  if (item.therapy?.isAtRisk ?? false) {
+    return 'low';
+  }
+  return 'none';
+}
+
+int _severityRank(String? severity) {
+  return switch (severity) {
+    'high' || 'critical' => 3,
+    'medium' => 2,
+    'low' => 1,
+    _ => 0,
+  };
+}
+
+String? _whatsAppPhone(String? value) {
+  if (value == null || value.trim().isEmpty) return null;
+  var phone = value.replaceAll(RegExp(r'[^0-9+]'), '');
+  if (phone.startsWith('+')) phone = phone.substring(1);
+  if (phone.startsWith('0')) phone = '62${phone.substring(1)}';
+  if (phone.length < 8) return null;
+  return phone;
+}
+
+Future<void> _openWhatsApp(BuildContext context, String phone) async {
+  final uri = Uri.parse('https://wa.me/$phone');
+  final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+  if (launched || !context.mounted) return;
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(content: Text('Unable to open WhatsApp.')),
+  );
+}
+
+({DateTime start, DateTime end})? _dateRange(_DateFilter filter) {
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  return switch (filter) {
+    _DateFilter.all => null,
+    _DateFilter.today => (
+        start: today,
+        end: today.add(const Duration(days: 1))
+      ),
+    _DateFilter.yesterday => _yesterday(),
+    _DateFilter.lastWeek => (
+        start: today.subtract(const Duration(days: 7)),
+        end: today.add(const Duration(days: 1)),
+      ),
+    _DateFilter.lastMonth => (
+        start: DateTime(now.year, now.month - 1, now.day),
+        end: today.add(const Duration(days: 1)),
+      ),
+  };
+}
+
+({DateTime start, DateTime end}) _yesterday() {
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  final start = today.subtract(const Duration(days: 1));
+  return (start: start, end: today);
+}
+
+bool _isWithin(DateTime value, ({DateTime start, DateTime end}) range) {
+  return !value.isBefore(range.start) && value.isBefore(range.end);
 }

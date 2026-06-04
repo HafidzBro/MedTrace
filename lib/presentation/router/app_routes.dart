@@ -14,13 +14,15 @@ class AppRoutes {
   static const String tbMap = '/patient/map';
   static const String reminders = '/patient/reminders';
   static const String patientProfile = '/patient/profile';
+  static const String patientNotifications = '/patient/notifications';
 
   // Doctor
   static const String doctorDashboard = '/doctor-dashboard';
   static const String patientManagement = '/doctor/patients';
   static const String patientDetail = '/doctor/patients/detail';
   static const String alerts = '/doctor/alerts';
-  static const String analytics = '/doctor/analytics';
+  static const String adherenceMonitoring = '/doctor/adherence';
+  static const String analytics = adherenceMonitoring;
   static const String doctorMap = '/doctor/map';
   static const String doctorProfile = '/doctor/profile';
 }

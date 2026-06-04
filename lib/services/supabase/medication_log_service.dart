@@ -36,6 +36,7 @@ class MedicationLogService {
 
   Future<List<MedicationLogModel>> listForPatient(String patientId) async {
     final resolvedPatientId = await patients.resolvePatientId(patientId);
+    await _markOverduePendingLogs(patientId: resolvedPatientId);
     final response = await context.client
         .from('medication_logs')
         .select()
@@ -52,6 +53,7 @@ class MedicationLogService {
   ) async {
     if (patientIds.isEmpty) return [];
 
+    await _markOverduePendingLogs(patientIds: patientIds);
     final response = await context.client
         .from('medication_logs')
         .select()
@@ -69,6 +71,7 @@ class MedicationLogService {
     required DateTime end,
   }) async {
     final resolvedPatientId = await patients.resolvePatientId(patientId);
+    await _markOverduePendingLogs(patientId: resolvedPatientId);
     final response = await context.client
         .from('medication_logs')
         .select()
@@ -83,6 +86,7 @@ class MedicationLogService {
   }
 
   Future<List<MedicationLogModel>> listForTherapy(String therapyId) async {
+    await _markOverduePendingLogs(therapyId: therapyId);
     final response = await context.client
         .from('medication_logs')
         .select()
@@ -117,6 +121,7 @@ class MedicationLogService {
     required TreatmentModel therapy,
   }) async {
     final resolvedPatientId = await patients.resolvePatientId(patientId);
+    await _markOverduePendingLogs(patientId: resolvedPatientId);
     final now = DateTime.now();
     final today = _dateOnly(now);
     final weekStart = today.subtract(Duration(days: today.weekday - 1));
@@ -168,6 +173,7 @@ class MedicationLogService {
 
   Future<MedicationLogModel> logTodayDose(String patientId) async {
     final resolvedPatientId = await patients.resolvePatientId(patientId);
+    await _markOverduePendingLogs(patientId: resolvedPatientId);
     final today = _dateOnly(DateTime.now());
     final tomorrow = today.add(const Duration(days: 1));
     final response = await context.client
@@ -207,6 +213,7 @@ class MedicationLogService {
 
   Future<MedicationLogModel?> todayLog(String patientId) async {
     final resolvedPatientId = await patients.resolvePatientId(patientId);
+    await _markOverduePendingLogs(patientId: resolvedPatientId);
     final today = _dateOnly(DateTime.now());
     final tomorrow = today.add(const Duration(days: 1));
     final response = await context.client
@@ -258,6 +265,48 @@ class MedicationLogService {
           .update({'scheduled_at': updatedSchedule.toIso8601String()}).eq(
               'medication_log_id', medicationLogId);
     }
+  }
+
+  Future<void> clearRiskLogsForTherapy(String therapyId) async {
+    final today = _dateOnly(DateTime.now());
+
+    await context.client
+        .from('medication_logs')
+        .update({'status': 'skipped', 'taken_at': null})
+        .eq('therapy_id', therapyId)
+        .eq('status', 'missed');
+
+    await context.client
+        .from('medication_logs')
+        .update({'status': 'skipped', 'taken_at': null})
+        .eq('therapy_id', therapyId)
+        .eq('status', 'pending')
+        .lt('scheduled_at', today.toIso8601String());
+  }
+
+  Future<void> _markOverduePendingLogs({
+    String? patientId,
+    List<String>? patientIds,
+    String? therapyId,
+  }) async {
+    final cutoff = DateTime.now().subtract(const Duration(hours: 24));
+    dynamic query = context.client
+        .from('medication_logs')
+        .update({'status': 'missed'})
+        .eq('status', 'pending')
+        .lt('scheduled_at', cutoff.toIso8601String());
+
+    if (patientId != null && patientId.isNotEmpty) {
+      query = query.eq('patient_id', patientId);
+    }
+    if (patientIds != null && patientIds.isNotEmpty) {
+      query = query.filter('patient_id', 'in', '(${patientIds.join(',')})');
+    }
+    if (therapyId != null && therapyId.isNotEmpty) {
+      query = query.eq('therapy_id', therapyId);
+    }
+
+    await query;
   }
 
   Future<_PhaseSchedule> _currentPhaseSchedule(TreatmentModel therapy) async {

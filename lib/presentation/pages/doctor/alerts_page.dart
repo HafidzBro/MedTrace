@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 import 'package:medtrace/data/models/alert_model.dart';
 import 'package:medtrace/presentation/pages/doctor/doctor_mockup_widgets.dart';
 import 'package:medtrace/presentation/providers/app_providers.dart';
-import 'package:medtrace/presentation/providers/feature_providers.dart';
 import 'package:medtrace/presentation/router/app_routes.dart';
+import 'package:medtrace/services/supabase/dashboard_service.dart';
+
+enum _AlertSeverityFilter { all, low, medium, high }
 
 class AlertsPage extends ConsumerStatefulWidget {
   const AlertsPage({super.key});
@@ -16,202 +17,299 @@ class AlertsPage extends ConsumerStatefulWidget {
 }
 
 class _AlertsPageState extends ConsumerState<AlertsPage> {
-  String _filter = 'all';
+  _AlertSeverityFilter _severityFilter = _AlertSeverityFilter.all;
 
   @override
   Widget build(BuildContext context) {
-    final user = ref.watch(authProvider).user;
-    if (user == null) {
-      return const DoctorMockScaffold(
-        currentIndex: 3,
-        appBar: DoctorTopBar(title: 'MedTrace'),
-        child: Center(child: Text('Not authenticated')),
-      );
-    }
-
-    final alertsState = ref.watch(doctorAlertsProvider(user.id));
-    final filteredAlerts = _applyFilter(alertsState.alerts);
-    final hasHighPriority = alertsState.alerts
-        .any((a) => a.severity == 'critical' || a.severity == 'high');
+    final summaryState = ref.watch(currentDoctorDashboardSummaryProvider);
+    final summary = summaryState.valueOrNull;
+    final allAlerts = _alertViews(summary);
+    final alerts = _filterAlerts(allAlerts);
 
     return DoctorMockScaffold(
-      currentIndex: 3,
-      appBar: const DoctorTopBar(title: 'MedTrace'),
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(28, 32, 28, 104),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      currentIndex: -1,
+      appBar: DoctorTopBar(
+        title: 'Alert Center',
+        showBack: true,
+        onLeadingTap: () {
+          if (context.canPop()) {
+            context.pop();
+          } else {
+            context.go(AppRoutes.doctorDashboard);
+          }
+        },
+        actions: const [SizedBox(width: 12)],
+      ),
+      child: RefreshIndicator(
+        color: doctorTeal,
+        onRefresh: () async {
+          ref.invalidate(currentDoctorDashboardSummaryProvider);
+          await ref.read(currentDoctorDashboardSummaryProvider.future);
+        },
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(28, 32, 28, 104),
           children: [
+            const Text(
+              'Alert Center',
+              style: TextStyle(
+                color: doctorText,
+                fontSize: 26,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Review high-risk patients and database alerts.',
+              style: TextStyle(color: doctorMuted, fontSize: 15),
+            ),
+            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: _SeverityFilterButton(
+                value: _severityFilter,
+                onChanged: (value) => setState(() => _severityFilter = value),
+              ),
+            ),
+            const SizedBox(height: 18),
             Row(
               children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Alert Center',
-                        style: TextStyle(
-                            color: doctorText,
-                            fontSize: 26,
-                            fontWeight: FontWeight.w800),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${alertsState.alerts.length} total alert${alertsState.alerts.length == 1 ? '' : 's'}',
-                        style:
-                            const TextStyle(color: doctorMuted, fontSize: 15),
-                      ),
-                    ],
-                  ),
+                _AlertMetric(
+                  value: summaryState.isLoading ? '...' : '${alerts.length}',
+                  label: 'Open Alerts',
                 ),
-                if (alertsState.isLoading)
-                  const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                        strokeWidth: 2, color: doctorTeal),
-                  ),
+                const SizedBox(width: 12),
+                _AlertMetric(
+                  value: summaryState.isLoading
+                      ? '...'
+                      : '${alerts.where((item) => item.highPriority).length}',
+                  label: 'High Risk',
+                  danger: true,
+                ),
               ],
             ),
-            const SizedBox(height: 16),
-            _FilterChips(
-              selected: _filter,
-              onSelect: (v) => setState(() => _filter = v),
-              alerts: alertsState.alerts,
-            ),
-            const SizedBox(height: 24),
-            if (hasHighPriority && _filter == 'all')
-              _HighPriorityBanner(
-                count: alertsState.alerts
-                    .where((a) =>
-                        a.severity == 'critical' || a.severity == 'high')
-                    .length,
-              ),
-            if (hasHighPriority && _filter == 'all') const SizedBox(height: 20),
-            if (alertsState.error != null)
-              _ErrorTile(message: alertsState.error!)
-            else if (filteredAlerts.isEmpty && !alertsState.isLoading)
-              _EmptyTile(filter: _filter)
-            else
-              ...filteredAlerts.map(
+            const SizedBox(height: 28),
+            if (summaryState.hasError && summary == null)
+              _StateCard(
+                icon: Icons.error_outline_rounded,
+                title: 'Unable to load alerts',
+                message: summaryState.error.toString(),
+              )
+            else if (summaryState.isLoading && summary == null)
+              const _StateCard(
+                icon: Icons.sync_rounded,
+                title: 'Loading alerts',
+                message: 'Checking alerts from your assigned patients.',
+              )
+            else if (alerts.isEmpty)
+              _StateCard(
+                icon: Icons.verified_outlined,
+                title: _severityFilter == _AlertSeverityFilter.all
+                    ? 'No active alerts'
+                    : 'No ${_severityFilterLabel(_severityFilter).toLowerCase()} alerts',
+                message:
+                    'High-risk patients and database alerts will appear here.',
+              )
+            else ...[
+              _PriorityBanner(alerts.first),
+              const SizedBox(height: 24),
+              ...alerts.map(
                 (alert) => Padding(
                   padding: const EdgeInsets.only(bottom: 16),
                   child: _AlertCard(
                     alert: alert,
                     onView: () => context.go(
                       AppRoutes.patientDetail,
-                      extra: {'patientId': alert.patientId},
+                      extra: {
+                        'patientId': alert.patientId,
+                        'patientName': alert.patientName,
+                      },
                     ),
-                    onResolve: alert.actionTaken
-                        ? null
-                        : () => ref
-                            .read(doctorAlertsProvider(user.id).notifier)
-                            .markAsResolved(alert.alertId),
                   ),
                 ),
               ),
+            ],
           ],
         ),
       ),
     );
   }
 
-  List<AlertModel> _applyFilter(List<AlertModel> alerts) {
-    switch (_filter) {
-      case 'high':
-        return alerts
-            .where(
-                (a) => a.severity == 'high' || a.severity == 'critical')
-            .toList();
-      case 'medium':
-        return alerts.where((a) => a.severity == 'medium').toList();
-      case 'resolved':
-        return alerts.where((a) => a.actionTaken).toList();
-      default:
-        return alerts;
-    }
+  List<_AlertView> _filterAlerts(List<_AlertView> alerts) {
+    return switch (_severityFilter) {
+      _AlertSeverityFilter.low =>
+        alerts.where((alert) => alert.normalizedSeverity == 'low').toList(),
+      _AlertSeverityFilter.medium =>
+        alerts.where((alert) => alert.normalizedSeverity == 'medium').toList(),
+      _AlertSeverityFilter.high =>
+        alerts.where((alert) => alert.normalizedSeverity == 'high').toList(),
+      _AlertSeverityFilter.all => alerts,
+    };
   }
 }
 
-class _FilterChips extends StatelessWidget {
-  final String selected;
-  final ValueChanged<String> onSelect;
-  final List<AlertModel> alerts;
+class _SeverityFilterButton extends StatelessWidget {
+  final _AlertSeverityFilter value;
+  final ValueChanged<_AlertSeverityFilter> onChanged;
 
-  const _FilterChips({
-    required this.selected,
-    required this.onSelect,
-    required this.alerts,
+  const _SeverityFilterButton({
+    required this.value,
+    required this.onChanged,
   });
 
   @override
   Widget build(BuildContext context) {
-    final options = [
-      ('all', 'All (${alerts.length})'),
-      (
-        'high',
-        'High (${alerts.where((a) => a.severity == 'high' || a.severity == 'critical').length})'
-      ),
-      (
-        'medium',
-        'Medium (${alerts.where((a) => a.severity == 'medium').length})'
-      ),
-      ('resolved', 'Resolved (${alerts.where((a) => a.actionTaken).length})'),
-    ];
-
-    return Wrap(
-      spacing: 8,
-      children: options.map((opt) {
-        final isSelected = selected == opt.$1;
-        return GestureDetector(
-          onTap: () => onSelect(opt.$1),
-          child: Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            decoration: BoxDecoration(
-              color: isSelected ? doctorTeal2 : Colors.white,
-              border: Border.all(
-                  color: isSelected ? doctorTeal2 : const Color(0xFFB7C3C3)),
-              borderRadius: BorderRadius.circular(999),
+    return PopupMenuButton<_AlertSeverityFilter>(
+      initialValue: value,
+      onSelected: onChanged,
+      itemBuilder: (context) => _AlertSeverityFilter.values
+          .map(
+            (item) => PopupMenuItem(
+              value: item,
+              child: Text(_severityFilterLabel(item)),
             ),
-            child: Text(
-              opt.$2,
-              style: TextStyle(
-                color: isSelected ? Colors.white : doctorMuted,
+          )
+          .toList(),
+      child: Container(
+        height: 34,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: doctorTeal2,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.filter_list_rounded,
+                color: Colors.white, size: 16),
+            const SizedBox(width: 6),
+            Text(
+              _severityFilterLabel(value),
+              style: const TextStyle(
+                color: Colors.white,
                 fontSize: 13,
-                fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.w700,
               ),
             ),
-          ),
-        );
-      }).toList(),
+            const SizedBox(width: 4),
+            const Icon(
+              Icons.keyboard_arrow_down_rounded,
+              color: Colors.white,
+              size: 17,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
 
-class _HighPriorityBanner extends StatelessWidget {
-  final int count;
-  const _HighPriorityBanner({required this.count});
+class _AlertMetric extends StatelessWidget {
+  final String value;
+  final String label;
+  final bool danger;
+
+  const _AlertMetric({
+    required this.value,
+    required this.label,
+    this.danger = false,
+  });
 
   @override
   Widget build(BuildContext context) {
+    return Expanded(
+      child: Container(
+        height: 74,
+        decoration: BoxDecoration(
+          color: danger ? doctorDangerSoft : Colors.white,
+          borderRadius: BorderRadius.circular(7),
+          border: Border.all(
+            color: danger ? const Color(0xFFFFA7A7) : doctorBorder,
+          ),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              value,
+              style: TextStyle(
+                color: danger ? doctorDanger : doctorTeal,
+                fontSize: 26,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                color: danger ? doctorDanger : doctorMuted,
+                fontSize: 13,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PriorityBanner extends StatelessWidget {
+  final _AlertView alert;
+
+  const _PriorityBanner(this.alert);
+
+  @override
+  Widget build(BuildContext context) {
+    if (!alert.highPriority) return const SizedBox.shrink();
+
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
         color: doctorDangerSoft,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: const Color(0xFFFF9D9D)),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.warning_rounded, color: doctorDanger),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              '$count high-priority alert${count == 1 ? '' : 's'} require immediate attention.',
-              style: const TextStyle(
-                  color: doctorDanger, fontSize: 14, fontWeight: FontWeight.w600),
+          Row(
+            children: [
+              DoctorChip(
+                label: alert.priorityLabel.toUpperCase(),
+                color: doctorDanger,
+                textColor: Colors.white,
+              ),
+              const SizedBox(width: 12),
+              Text(
+                alert.timeLabel,
+                style: const TextStyle(color: doctorDanger, fontSize: 13),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          const Row(
+            children: [
+              Icon(Icons.warning_rounded, color: doctorDanger),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'High-Risk Patient Alert',
+                  style: TextStyle(
+                    color: doctorDanger,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            alert.body,
+            style: const TextStyle(
+              color: doctorDanger,
+              fontSize: 15,
+              height: 1.35,
             ),
           ),
         ],
@@ -221,224 +319,325 @@ class _HighPriorityBanner extends StatelessWidget {
 }
 
 class _AlertCard extends StatelessWidget {
-  final AlertModel alert;
+  final _AlertView alert;
   final VoidCallback onView;
-  final VoidCallback? onResolve;
 
   const _AlertCard({
     required this.alert,
     required this.onView,
-    this.onResolve,
   });
 
   @override
   Widget build(BuildContext context) {
-    final isCritical =
-        alert.severity == 'critical' || alert.severity == 'high';
-    final isResolved = alert.actionTaken;
-
-    final priorityLabel = alert.severity == 'critical'
-        ? 'Critical'
-        : alert.severity == 'high'
-            ? 'High Priority'
-            : alert.severity == 'medium'
-                ? 'Medium Priority'
-                : 'Low Priority';
-
-    final priorityBg = isCritical
-        ? doctorDangerSoft
-        : alert.severity == 'medium'
-            ? const Color(0xFFFFF3E0)
-            : doctorNeutral;
-
-    final priorityFg = isCritical
-        ? doctorDanger
-        : alert.severity == 'medium'
-            ? const Color(0xFF8C4A1F)
-            : const Color(0xFF50585C);
-
-    final patientName = alert.patientName?.isNotEmpty == true
-        ? alert.patientName!
-        : (alert.patientEmail?.isNotEmpty == true
-            ? alert.patientEmail!
-            : 'Patient');
-
-    final displayTitle = alert.title?.isNotEmpty == true
-        ? alert.title!
-        : _formatType(alert.type);
-
-    final timeStr = _formatTime(alert.createdAt);
+    final priorityColor =
+        alert.highPriority ? doctorDangerSoft : const Color(0xFFF1F4F4);
+    final priorityText = alert.highPriority ? doctorDanger : doctorMuted;
 
     return DoctorCard(
-      padding: const EdgeInsets.all(20),
-      borderColor: isResolved
-          ? doctorBorder
-          : isCritical
-              ? const Color(0xFFFF9D9D)
-              : doctorBorder,
+      padding: const EdgeInsets.all(22),
+      borderColor: alert.highPriority ? const Color(0xFFFFA7A7) : doctorBorder,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
               DoctorChip(
-                  label: priorityLabel,
-                  color: priorityBg,
-                  textColor: priorityFg),
-              if (isResolved) ...[
-                const SizedBox(width: 8),
-                const DoctorChip(
-                    label: 'Resolved',
-                    color: Color(0xFFE8F5E9),
-                    textColor: Color(0xFF2E7D32)),
-              ],
+                label: alert.priorityLabel,
+                color: priorityColor,
+                textColor: priorityText,
+              ),
               const Spacer(),
-              Text(timeStr,
-                  style: const TextStyle(color: doctorMuted, fontSize: 12)),
+              Text(
+                alert.timeLabel,
+                style: const TextStyle(color: doctorMuted, fontSize: 13),
+              ),
             ],
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 18),
           Text(
-            displayTitle,
+            alert.title,
             style: const TextStyle(
-                color: doctorText, fontSize: 18, fontWeight: FontWeight.w800),
+              color: doctorText,
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+            ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             decoration: BoxDecoration(
               color: const Color(0xFFF1F4F4),
               borderRadius: BorderRadius.circular(6),
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
+            child: Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 8,
+              runSpacing: 4,
               children: [
-                const Icon(Icons.person_outline_rounded,
-                    size: 15, color: doctorTeal),
-                const SizedBox(width: 6),
-                Flexible(
-                  child: Text(
-                    patientName,
-                    style: const TextStyle(
-                        color: doctorTeal,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13),
-                    overflow: TextOverflow.ellipsis,
+                const Icon(
+                  Icons.person_outline_rounded,
+                  size: 16,
+                  color: doctorTeal,
+                ),
+                Text(
+                  alert.patientName,
+                  style: const TextStyle(
+                    color: doctorTeal,
+                    fontWeight: FontWeight.w700,
                   ),
+                ),
+                Text(
+                  '- ${_shortId(alert.patientId)}',
+                  style: const TextStyle(color: doctorMuted),
                 ),
               ],
             ),
           ),
-          if (alert.description?.isNotEmpty == true) ...[
-            const SizedBox(height: 12),
-            Text(
-              alert.description!,
-              style: const TextStyle(
-                  color: Color(0xFF50585C), fontSize: 14, height: 1.4),
-            ),
-          ],
           const SizedBox(height: 18),
-          const Divider(color: doctorBorder, height: 1),
+          Text(
+            alert.body,
+            style: const TextStyle(
+              color: Color(0xFF50585C),
+              fontSize: 15,
+              height: 1.35,
+            ),
+          ),
+          const SizedBox(height: 24),
+          Container(height: 1, color: doctorBorder),
           const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              if (onResolve != null)
-                TextButton(
-                  onPressed: onResolve,
-                  style: TextButton.styleFrom(foregroundColor: doctorMuted),
-                  child: const Text('Mark Resolved'),
-                ),
-              if (onResolve != null) const SizedBox(width: 8),
-              ElevatedButton.icon(
-                onPressed: onView,
-                icon: const Icon(Icons.open_in_new_rounded, size: 15),
-                label: const Text('View Patient'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: doctorTeal2,
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(7)),
+          Align(
+            alignment: Alignment.centerRight,
+            child: ElevatedButton.icon(
+              onPressed: onView,
+              icon: const Icon(Icons.open_in_new_rounded, size: 17),
+              label: const Text('View Patient'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: doctorTeal2,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(7),
                 ),
               ),
-            ],
+            ),
           ),
         ],
       ),
     );
   }
-
-  static String _formatType(String value) {
-    if (value.isEmpty) return 'Alert';
-    return value
-        .split('_')
-        .where((w) => w.isNotEmpty)
-        .map((w) => '${w[0].toUpperCase()}${w.substring(1)}')
-        .join(' ');
-  }
-
-  static String _formatTime(DateTime dt) {
-    final now = DateTime.now();
-    final diff = now.difference(dt);
-    if (diff.inMinutes < 1) return 'Just now';
-    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
-    if (diff.inHours < 24) return '${diff.inHours}h ago';
-    if (diff.inDays == 1) return 'Yesterday';
-    return DateFormat('MMM d').format(dt);
-  }
 }
 
-class _EmptyTile extends StatelessWidget {
-  final String filter;
-  const _EmptyTile({required this.filter});
+class _StateCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String message;
+
+  const _StateCard({
+    required this.icon,
+    required this.title,
+    required this.message,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final msg = filter == 'resolved'
-        ? 'No resolved alerts yet.'
-        : filter == 'all'
-            ? 'No alerts at this time.'
-            : 'No $filter priority alerts.';
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(32),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF2F4F4),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: doctorBorder),
-      ),
+    return DoctorCard(
+      padding: const EdgeInsets.all(24),
       child: Column(
         children: [
-          const Icon(Icons.check_circle_outline_rounded,
-              color: doctorTeal, size: 40),
+          Icon(icon, color: doctorTeal, size: 34),
           const SizedBox(height: 12),
-          Text(msg,
-              style: const TextStyle(color: doctorMuted, fontSize: 15),
-              textAlign: TextAlign.center),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: doctorText,
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: doctorMuted,
+              fontSize: 14,
+              height: 1.35,
+            ),
+          ),
         ],
       ),
     );
   }
 }
 
-class _ErrorTile extends StatelessWidget {
-  final String message;
-  const _ErrorTile({required this.message});
+List<_AlertView> _alertViews(DoctorDashboardSummary? summary) {
+  if (summary == null) return const [];
 
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: doctorDangerSoft,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFFF9D9D)),
+  final items = <_AlertView>[];
+  final highRiskPatientsWithAlert = <String>{};
+
+  for (final alert in summary.alerts) {
+    if (alert.severity == 'high' || alert.severity == 'critical') {
+      highRiskPatientsWithAlert.add(alert.patientId);
+    }
+    items.add(_AlertView.fromDatabase(alert));
+  }
+
+  for (final item in summary.directoryItems) {
+    if (!_isHighRisk(item)) continue;
+    if (highRiskPatientsWithAlert.contains(item.patient.patientId)) continue;
+    items.add(_AlertView.fromHighRiskPatient(item));
+  }
+
+  items.sort((a, b) {
+    final severity = b.severityRank.compareTo(a.severityRank);
+    if (severity != 0) return severity;
+    return b.createdAt.compareTo(a.createdAt);
+  });
+
+  return items;
+}
+
+bool _isHighRisk(DoctorPatientDirectoryItem item) {
+  final therapy = item.therapy;
+  return item.missedCount > 0 ||
+      (therapy?.isDefaulted ?? false) ||
+      (therapy?.isAtRisk ?? false);
+}
+
+String _patientName(DoctorPatientDirectoryItem item) {
+  final fullName = item.profile.fullName.trim();
+  if (fullName.isNotEmpty) return fullName;
+  final email = item.profile.email.trim();
+  if (email.isNotEmpty) return email;
+  return 'Patient';
+}
+
+String _formatAlertType(String type) {
+  return switch (type) {
+    'missed_medication' => 'Missed Medication Alert',
+    'high_risk' => 'High-Risk Default Warning',
+    'treatment_completion' => 'Treatment Completion',
+    _ => 'Patient Alert',
+  };
+}
+
+String _shortId(String value) {
+  final compact = value.replaceAll('-', '').toUpperCase();
+  if (compact.length <= 8) return compact;
+  return 'TBM-${compact.substring(compact.length - 6)}';
+}
+
+String _relativeTime(DateTime time) {
+  final difference = DateTime.now().difference(time);
+  if (difference.inMinutes < 1) return 'Just now';
+  if (difference.inMinutes < 60) return '${difference.inMinutes} min ago';
+  if (difference.inHours < 24) return '${difference.inHours} hours ago';
+  if (difference.inDays == 1) return 'Yesterday';
+  return '${difference.inDays} days ago';
+}
+
+class _AlertView {
+  final String patientId;
+  final String patientName;
+  final String title;
+  final String body;
+  final String severity;
+  final DateTime createdAt;
+
+  const _AlertView({
+    required this.patientId,
+    required this.patientName,
+    required this.title,
+    required this.body,
+    required this.severity,
+    required this.createdAt,
+  });
+
+  factory _AlertView.fromDatabase(AlertModel alert) {
+    return _AlertView(
+      patientId: alert.patientId,
+      patientName: _textOrFallback(alert.patientName, 'Patient'),
+      title: _textOrFallback(alert.title, _formatAlertType(alert.type)),
+      body: _textOrFallback(
+        alert.description,
+        'A patient alert was recorded in the clinical alert table.',
       ),
-      child: Text(message,
-          style: const TextStyle(color: doctorDanger, fontSize: 14)),
+      severity: alert.severity,
+      createdAt: alert.createdAt,
     );
   }
+
+  factory _AlertView.fromHighRiskPatient(DoctorPatientDirectoryItem item) {
+    final therapy = item.therapy;
+    final adherence = therapy?.adherencePercentage;
+    final missed = item.missedCount;
+    final reason = missed > 0
+        ? '$missed missed medication log${missed == 1 ? '' : 's'}'
+        : (therapy?.isDefaulted ?? false)
+            ? 'therapy status indicates failed treatment risk'
+            : 'therapy status is marked at risk';
+
+    return _AlertView(
+      patientId: item.patient.patientId,
+      patientName: _patientName(item),
+      title: 'High-Risk Default Warning',
+      body: adherence == null
+          ? 'Patient is flagged high risk because $reason.'
+          : 'Patient is flagged high risk because $reason. Current adherence is ${adherence.toStringAsFixed(0)}%.',
+      severity: _severityFromMissedCount(missed),
+      createdAt: item.lastLog?.scheduledAt ?? DateTime.now(),
+    );
+  }
+
+  bool get highPriority => severity == 'high' || severity == 'critical';
+
+  String get normalizedSeverity {
+    if (severity == 'critical') return 'high';
+    if (severity == 'high' || severity == 'medium' || severity == 'low') {
+      return severity;
+    }
+    return 'low';
+  }
+
+  int get severityRank {
+    return switch (severity) {
+      'critical' => 4,
+      'high' => 3,
+      'medium' => 2,
+      _ => 1,
+    };
+  }
+
+  String get priorityLabel {
+    return switch (severity) {
+      'critical' => 'Critical Priority',
+      'high' => 'High Priority',
+      'medium' => 'Medium Priority',
+      _ => 'Low Priority',
+    };
+  }
+
+  String get timeLabel => _relativeTime(createdAt);
+}
+
+String _textOrFallback(String? value, String fallback) {
+  if (value == null || value.trim().isEmpty) return fallback;
+  return value.trim();
+}
+
+String _severityFromMissedCount(int missedCount) {
+  if (missedCount > 3) return 'high';
+  if (missedCount >= 2) return 'medium';
+  if (missedCount == 1) return 'low';
+  return 'low';
+}
+
+String _severityFilterLabel(_AlertSeverityFilter filter) {
+  return switch (filter) {
+    _AlertSeverityFilter.all => 'Filter',
+    _AlertSeverityFilter.low => 'Low',
+    _AlertSeverityFilter.medium => 'Medium',
+    _AlertSeverityFilter.high => 'High',
+  };
 }

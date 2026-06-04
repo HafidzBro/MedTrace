@@ -17,14 +17,9 @@ class AdherenceHistoryPage extends ConsumerWidget {
       currentIndex: 1,
       appBar: PatientTopBar(
         title: 'My Adherence',
-        leadingIcon: Icons.person,
-        actions: [
-          IconButton(
-            onPressed: () => context.go(AppRoutes.reminders),
-            icon: const Icon(Icons.notifications_none_rounded),
-            color: patientTeal,
-          ),
-        ],
+        showBack: true,
+        onLeadingTap: () => context.go(AppRoutes.patientDashboard),
+        actions: const [SizedBox(width: 12)],
       ),
       child: history.when(
         loading: () => const Center(
@@ -371,9 +366,14 @@ class _HistoryLogTile extends StatelessWidget {
 
   String _subtitle(MedicationLogModel log) {
     if (log.isTaken && log.takenAt != null) {
-      return 'Taken at ${_time(log.takenAt!)}';
+      return 'Taken at ${_time(log.takenAt!)} - scheduled ${_time(log.scheduledAt)}';
     }
-    if (log.isMissed) return 'Dose Missed';
+    if (log.isTaken) {
+      return 'Taken - scheduled ${_time(log.scheduledAt)}';
+    }
+    if (log.isMissed) {
+      return 'Missed scheduled dose at ${_time(log.scheduledAt)}';
+    }
     return 'Scheduled at ${_time(log.scheduledAt)}';
   }
 

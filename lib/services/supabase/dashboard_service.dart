@@ -3,6 +3,7 @@ import 'package:medtrace/data/models/medication_log_model.dart';
 import 'package:medtrace/data/models/patient_model.dart';
 import 'package:medtrace/data/models/profile_model.dart';
 import 'package:medtrace/data/models/therapy_model.dart';
+import 'package:medtrace/data/models/therapy_status_history_model.dart';
 import 'package:medtrace/services/supabase/alert_service.dart';
 import 'package:medtrace/services/supabase/doctor_service.dart';
 import 'package:medtrace/services/supabase/medication_log_service.dart';
@@ -48,6 +49,8 @@ class DoctorPatientDirectoryItem {
   final TreatmentModel? therapy;
   final MedicationLogModel? lastLog;
   final int missedCount;
+  final List<MedicationLogModel> logs;
+  final List<TherapyStatusHistoryModel> statusHistory;
 
   const DoctorPatientDirectoryItem({
     required this.patient,
@@ -55,6 +58,8 @@ class DoctorPatientDirectoryItem {
     this.therapy,
     this.lastLog,
     this.missedCount = 0,
+    this.logs = const [],
+    this.statusHistory = const [],
   });
 }
 
@@ -98,18 +103,35 @@ class DashboardService {
     for (final therapy in therapyRows) {
       therapiesByPatient.putIfAbsent(therapy.patientId, () => therapy);
     }
+    final statusHistoryEntries = await Future.wait(
+      therapyRows.map(
+        (therapy) async => MapEntry(
+          therapy.id,
+          await therapies.listStatusHistory(therapy.id),
+        ),
+      ),
+    );
+    final statusHistoryByTherapy =
+        Map<String, List<TherapyStatusHistoryModel>>.fromEntries(
+      statusHistoryEntries,
+    );
     final logsByPatient = <String, List<MedicationLogModel>>{};
     for (final log in medicationLogs) {
       logsByPatient.putIfAbsent(log.patientId, () => []).add(log);
     }
     final directoryItems = patientRecords.map((record) {
       final logs = logsByPatient[record.patient.patientId] ?? const [];
+      final therapy = therapiesByPatient[record.patient.patientId];
       return DoctorPatientDirectoryItem(
         patient: record.patient,
         profile: record.profile,
-        therapy: therapiesByPatient[record.patient.patientId],
+        therapy: therapy,
         lastLog: logs.isEmpty ? null : logs.first,
         missedCount: logs.where((log) => log.isMissed).length,
+        logs: logs,
+        statusHistory: therapy == null
+            ? const []
+            : statusHistoryByTherapy[therapy.id] ?? const [],
       );
     }).toList();
 

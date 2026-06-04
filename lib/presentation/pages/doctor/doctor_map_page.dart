@@ -7,7 +7,7 @@ import 'package:medtrace/presentation/pages/doctor/doctor_mockup_widgets.dart';
 import 'package:medtrace/presentation/providers/app_providers.dart';
 import 'package:medtrace/services/supabase_service.dart';
 
-enum _MapStatusFilter { all, active, highRisk, completed }
+enum _MapStatusFilter { all, onTreatment, atRisk, failed, completed }
 
 class DoctorMapPage extends ConsumerStatefulWidget {
   const DoctorMapPage({super.key});
@@ -155,8 +155,9 @@ class _DoctorMapPageState extends ConsumerState<DoctorMapPage> {
             child: _VisibleCasesSummary(
               expanded: _summaryExpanded,
               total: cases.length,
-              highRisk: cases.where((item) => item.isHighRisk).length,
-              active: cases.where((item) => item.isActive).length,
+              atRisk: cases.where((item) => item.isAtRisk).length,
+              onTreatment: cases.where((item) => item.isOnTreatment).length,
+              failed: cases.where((item) => item.isFailed).length,
               completed: cases.where((item) => item.isCompleted).length,
               onToggle: () =>
                   setState(() => _summaryExpanded = !_summaryExpanded),
@@ -169,9 +170,10 @@ class _DoctorMapPageState extends ConsumerState<DoctorMapPage> {
 
   List<DoctorMapCase> _filteredCases(List<DoctorMapCase> cases) {
     return switch (_statusFilter) {
-      _MapStatusFilter.active => cases.where((item) => item.isActive).toList(),
-      _MapStatusFilter.highRisk =>
-        cases.where((item) => item.isHighRisk).toList(),
+      _MapStatusFilter.onTreatment =>
+        cases.where((item) => item.isOnTreatment).toList(),
+      _MapStatusFilter.atRisk => cases.where((item) => item.isAtRisk).toList(),
+      _MapStatusFilter.failed => cases.where((item) => item.isFailed).toList(),
       _MapStatusFilter.completed =>
         cases.where((item) => item.isCompleted).toList(),
       _MapStatusFilter.all => cases,
@@ -224,9 +226,10 @@ class _DoctorMapPageState extends ConsumerState<DoctorMapPage> {
     List<DoctorMapCase> cases,
   ) {
     return switch (value) {
-      _MapStatusFilter.active => cases.where((item) => item.isActive).toList(),
-      _MapStatusFilter.highRisk =>
-        cases.where((item) => item.isHighRisk).toList(),
+      _MapStatusFilter.onTreatment =>
+        cases.where((item) => item.isOnTreatment).toList(),
+      _MapStatusFilter.atRisk => cases.where((item) => item.isAtRisk).toList(),
+      _MapStatusFilter.failed => cases.where((item) => item.isFailed).toList(),
       _MapStatusFilter.completed =>
         cases.where((item) => item.isCompleted).toList(),
       _MapStatusFilter.all => cases,
@@ -244,9 +247,11 @@ class _DoctorMapPageState extends ConsumerState<DoctorMapPage> {
         child: GestureDetector(
           onTap: () => _showCaseDetails(context, item),
           child: _MapCluster(
-            count: item.isHighRisk ? '${item.item.missedCount}' : '',
+            count: item.isAtRisk || item.isFailed
+                ? '${item.item.missedCount}'
+                : '',
             color: color,
-            small: !item.isHighRisk,
+            small: !item.isAtRisk && !item.isFailed,
           ),
         ),
       );
@@ -364,9 +369,12 @@ class _StatusFilterChip extends StatelessWidget {
       onSelected: onChanged,
       itemBuilder: (context) => const [
         PopupMenuItem(value: _MapStatusFilter.all, child: Text('All Statuses')),
-        PopupMenuItem(value: _MapStatusFilter.active, child: Text('Active')),
         PopupMenuItem(
-            value: _MapStatusFilter.highRisk, child: Text('High Risk')),
+          value: _MapStatusFilter.onTreatment,
+          child: Text('On Treatment'),
+        ),
+        PopupMenuItem(value: _MapStatusFilter.atRisk, child: Text('At Risk')),
+        PopupMenuItem(value: _MapStatusFilter.failed, child: Text('Failed')),
         PopupMenuItem(
             value: _MapStatusFilter.completed, child: Text('Completed')),
       ],
@@ -450,9 +458,11 @@ class _MapLegend extends StatelessWidget {
         children: [
           Text('LEGEND', style: TextStyle(color: doctorMuted, fontSize: 10)),
           SizedBox(height: 8),
-          _LegendDot(color: doctorDanger, label: 'High Risk'),
+          _LegendDot(color: doctorTeal2, label: 'On Treatment'),
           SizedBox(height: 7),
-          _LegendDot(color: doctorTeal2, label: 'Active'),
+          _LegendDot(color: doctorDanger, label: 'At Risk'),
+          SizedBox(height: 7),
+          _LegendDot(color: Color(0xFF263238), label: 'Failed'),
           SizedBox(height: 7),
           _LegendDot(color: doctorMint, label: 'Completed'),
         ],
@@ -559,16 +569,18 @@ class _MapActionButton extends StatelessWidget {
 class _VisibleCasesSummary extends StatelessWidget {
   final bool expanded;
   final int total;
-  final int highRisk;
-  final int active;
+  final int atRisk;
+  final int onTreatment;
+  final int failed;
   final int completed;
   final VoidCallback onToggle;
 
   const _VisibleCasesSummary({
     required this.expanded,
     required this.total,
-    required this.highRisk,
-    required this.active,
+    required this.atRisk,
+    required this.onTreatment,
+    required this.failed,
     required this.completed,
     required this.onToggle,
   });
@@ -617,7 +629,7 @@ class _VisibleCasesSummary extends StatelessWidget {
                   ),
                   _CompactMetric(value: total, label: 'Total'),
                   const SizedBox(width: 10),
-                  _CompactMetric(value: highRisk, label: 'Risk', danger: true),
+                  _CompactMetric(value: atRisk, label: 'Risk', danger: true),
                   const SizedBox(width: 6),
                   Icon(
                     expanded
@@ -645,8 +657,8 @@ class _VisibleCasesSummary extends StatelessWidget {
                     const SizedBox(width: 14),
                     Expanded(
                       child: _SummaryBox(
-                        value: '$highRisk',
-                        label: 'High Risk',
+                        value: '$atRisk',
+                        label: 'At Risk',
                         danger: true,
                       ),
                     ),
@@ -656,9 +668,24 @@ class _VisibleCasesSummary extends StatelessWidget {
                 Row(
                   children: [
                     Expanded(
-                      child: _SmallSummary(label: 'Active', value: active),
+                      child: _SmallSummary(
+                        label: 'On Treatment',
+                        value: onTreatment,
+                      ),
                     ),
                     const SizedBox(width: 10),
+                    Expanded(
+                      child: _SmallSummary(
+                        label: 'Failed',
+                        value: failed,
+                        danger: true,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
                     Expanded(
                       child: _SmallSummary(
                         label: 'Completed',
@@ -777,8 +804,13 @@ class _SummaryBox extends StatelessWidget {
 class _SmallSummary extends StatelessWidget {
   final String label;
   final int value;
+  final bool danger;
 
-  const _SmallSummary({required this.label, required this.value});
+  const _SmallSummary({
+    required this.label,
+    required this.value,
+    this.danger = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -800,8 +832,8 @@ class _SmallSummary extends StatelessWidget {
           ),
           Text(
             '$value',
-            style: const TextStyle(
-              color: doctorTeal,
+            style: TextStyle(
+              color: danger ? doctorDanger : doctorTeal,
               fontWeight: FontWeight.w800,
             ),
           ),
@@ -921,25 +953,32 @@ LatLng _mapCenter(List<DoctorMapCase> cases, List<DoctorMapCase> fallback) {
 }
 
 Color _caseColor(DoctorMapCase item) {
-  if (item.isHighRisk) return doctorDanger;
+  if (item.isFailed) return const Color(0xFF263238);
+  if (item.isAtRisk) return doctorDanger;
   if (item.isCompleted) return doctorMint;
   return doctorTeal2;
 }
 
 String _caseStatusLabel(DoctorMapCase item) {
-  if (item.isHighRisk) {
+  if (item.isFailed) {
     return item.item.missedCount > 0
-        ? 'High Risk (${item.item.missedCount} missed)'
-        : 'High Risk';
+        ? 'Failed (${item.item.missedCount} missed)'
+        : 'Failed';
+  }
+  if (item.isAtRisk) {
+    return item.item.missedCount > 0
+        ? 'At Risk (${item.item.missedCount} missed)'
+        : 'At Risk';
   }
   if (item.isCompleted) return 'Completed';
-  return 'Active';
+  return 'On Treatment';
 }
 
 String _statusFilterLabel(_MapStatusFilter value) {
   return switch (value) {
-    _MapStatusFilter.active => 'Active',
-    _MapStatusFilter.highRisk => 'High Risk',
+    _MapStatusFilter.onTreatment => 'On Treatment',
+    _MapStatusFilter.atRisk => 'At Risk',
+    _MapStatusFilter.failed => 'Failed',
     _MapStatusFilter.completed => 'Completed',
     _MapStatusFilter.all => 'Therapy Status',
   };

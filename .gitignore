@@ -46,5 +46,7 @@ app.*.map.json
 
 # Admin credentials
 ADMIN_CREDENTIALS.md
+.env
+supabase/functions/.env
 
 /test

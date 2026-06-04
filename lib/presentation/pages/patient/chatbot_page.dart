@@ -55,11 +55,16 @@ class _ChatbotPageState extends ConsumerState<ChatbotPage> {
         children: [
           const _DisclaimerBanner(),
           Expanded(
-            child: _ChatHistory(
-              isLoading: chatState.isLoading,
-              isSending: chatState.isSending,
-              messages: chatState.messages,
-              scrollController: _scrollController,
+            child: RefreshIndicator(
+              color: patientTeal,
+              onRefresh: () =>
+                  ref.read(currentPatientChatbotProvider.notifier).load(),
+              child: _ChatHistory(
+                isLoading: chatState.isLoading,
+                isSending: chatState.isSending,
+                messages: chatState.messages,
+                scrollController: _scrollController,
+              ),
             ),
           ),
           _InputBar(
@@ -162,13 +167,22 @@ class _ChatHistory extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (isLoading && messages.isEmpty) {
-      return const Center(
-        child: CircularProgressIndicator(color: patientTeal),
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          SizedBox(
+            height: MediaQuery.sizeOf(context).height * 0.55,
+            child: const Center(
+              child: CircularProgressIndicator(color: patientTeal),
+            ),
+          ),
+        ],
       );
     }
 
     return ListView(
       controller: scrollController,
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(28, 24, 28, 18),
       children: [
         Center(
