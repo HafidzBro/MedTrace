@@ -1,6 +1,7 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -19,11 +20,25 @@ final logger = Logger();
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Load environment variables from .env if present
   try {
-    await Supabase.initialize(
-      url: AppConfig.supabaseUrl,
-      anonKey: AppConfig.supabaseAnonKey,
-    );
+    await dotenv.load(fileName: ".env");
+  } catch (_) {
+    // .env is optional
+  }
+
+  try {
+    if (AppConfig.isSupabaseConfigured) {
+      await Supabase.initialize(
+        url: AppConfig.supabaseUrl,
+        anonKey: AppConfig.supabaseAnonKey,
+      );
+    } else {
+      logger.w(
+        '⚠️ SUPABASE_URL atau SUPABASE_ANON_KEY belum diisi di file .env. '
+        'Pastikan mengisi file .env agar koneksi Supabase aktif.',
+      );
+    }
 
     await CacheService.instance.initialize();
     await OfflineQueueService.instance.initialize();
@@ -32,8 +47,7 @@ void main() async {
 
     NotificationService.onNotificationTap = _handleNotificationTap;
   } catch (e) {
-    logger.e('Initialization error: $e');
-    rethrow;
+    logger.e('Initialization error: ');
   }
 
   runApp(const ProviderScope(child: MedTraceApp()));

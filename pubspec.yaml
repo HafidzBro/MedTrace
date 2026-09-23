@@ -69,6 +69,7 @@ dependencies:
   url_launcher: ^6.3.1
   cupertino_icons: ^1.0.8
   sign_in_with_apple: 8.0.0
+  flutter_dotenv: ^6.0.1
 
 
 dev_dependencies:
@@ -88,6 +89,7 @@ flutter:
     - assets/images/
     # - assets/animations/
     - assets/icons/
+    - .env
 
 flutter_launcher_icons:
   android: true
