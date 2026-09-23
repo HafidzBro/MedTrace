@@ -4,21 +4,11 @@ MedTrace is a Flutter mobile application for tuberculosis treatment monitoring. 
 
 ## Current Status
 
-This repository is in active development and is not Play Store ready yet.
-
-Key blockers are tracked in [TODO.md](TODO.md):
-- Flutter analyzer currently completes, but reports lint/deprecation cleanup items.
-- Debug APK build is verified for the current development baseline.
+This repository is in active development.
+- Flutter analyzer reports lint/deprecation items.
+- Debug APK build is verified.
 - Supabase migrations need cleanup because old and timestamped migrations describe conflicting schemas.
 - Runtime screens must use Supabase data or explicit loading/empty/error states, not dummy clinical data.
-
-## Main Documents
-
-- [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md): product, architecture, data, and release context.
-- [AGENT_CONTEXT.md](AGENT_CONTEXT.md): implementation rules for AI agents/developers.
-- [UI_CONTEXT.md](UI_CONTEXT.md): UI/UX direction and `assets/ui` mockup inventory.
-- [TODO.md](TODO.md): release roadmap and current blockers.
-- [SETUP.md](SETUP.md): local setup notes.
 
 ## Development
 
@@ -30,5 +20,3 @@ flutter analyze --no-pub
 flutter test
 flutter build apk --debug
 ```
-
-If Flutter commands hang on Windows, see Phase 0 in [TODO.md](TODO.md).
